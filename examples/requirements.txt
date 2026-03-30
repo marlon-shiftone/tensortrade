@@ -10,3 +10,4 @@ quantstats
 # ta>=0.4.7  # Broken metadata?
 # TA-Lib  # Broken metadata?
 pandas_ta
+alpaca-py>=0.42.0
