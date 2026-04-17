@@ -26,6 +26,10 @@ examples/training_logs
 
 # virtual environment
 venv
+.venv/
+
+# local env files
+.env
 
 .venv/
 

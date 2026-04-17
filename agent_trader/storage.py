@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .json_utils import json_default
 from .domain import PerformanceSnapshot, RunMode, SupervisorReport, utc_now_iso
 from .supervisor import SupervisorState
 
@@ -18,7 +19,7 @@ class JsonlStore:
     def append(self, record: dict[str, Any]) -> None:
         self._ensure_parent()
         with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True))
+            handle.write(json.dumps(record, sort_keys=True, default=json_default))
             handle.write("\n")
 
     def read_all(self) -> list[dict[str, Any]]:

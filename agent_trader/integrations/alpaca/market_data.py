@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
 
 import pandas as pd
@@ -18,6 +19,8 @@ class AlpacaMarketDataConfig:
     api_key: str
     secret_key: str
     feed: str = "iex"
+    request_retries: int = 3
+    retry_delay_seconds: float = 1.0
 
     @classmethod
     def from_env(cls) -> "AlpacaMarketDataConfig":
@@ -25,6 +28,8 @@ class AlpacaMarketDataConfig:
             api_key=require_env("ALPACA_API_KEY"),
             secret_key=require_env("ALPACA_SECRET_KEY"),
             feed=os.getenv("ALPACA_DATA_FEED", "iex"),
+            request_retries=int(os.getenv("ALPACA_DATA_RETRIES", "3")),
+            retry_delay_seconds=float(os.getenv("ALPACA_DATA_RETRY_DELAY_SECONDS", "1.0")),
         )
 
 
@@ -45,6 +50,7 @@ class AlpacaHistoricalDataClient:
         timeframe_unit: str,
         lookback_bars: int,
     ) -> pd.DataFrame:
+        from requests.exceptions import RequestException
         from alpaca.data.requests import StockBarsRequest
         from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
@@ -65,7 +71,24 @@ class AlpacaHistoricalDataClient:
             adjustment="raw",
             feed=self.config.feed,
         )
-        bars = self.client.get_stock_bars(request).df
+        attempts = max(1, int(self.config.request_retries))
+        bars = None
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                bars = self.client.get_stock_bars(request).df
+                last_error = None
+                break
+            except RequestException as exc:
+                last_error = exc
+                if attempt >= attempts:
+                    break
+                time.sleep(max(0.0, float(self.config.retry_delay_seconds)))
+
+        if last_error is not None:
+            raise RuntimeError(f"Falha ao buscar candles para {symbol}: {last_error}") from last_error
+        if bars is None:
+            raise RuntimeError(f"Falha ao buscar candles para {symbol}: resposta vazia da API")
         if bars.empty:
             raise RuntimeError(f"Nenhum candle retornado para {symbol}")
 

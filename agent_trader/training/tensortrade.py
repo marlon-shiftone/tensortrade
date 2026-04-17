@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -29,6 +29,8 @@ class TensorTradePipelineConfig:
     train_episodes: int = 3
     train_steps: int = 200
     order_notional_usd: float = 1000.0
+    action_scheme: str = "bsh"
+    trade_sizes: list[float] = field(default_factory=lambda: [1.0])
     model_path: str = "artifacts/alpaca_online_policy.keras"
 
     def to_dict(self) -> dict[str, Any]:
@@ -43,6 +45,8 @@ class TensorTradePipelineConfig:
             "train_episodes": self.train_episodes,
             "train_steps": self.train_steps,
             "order_notional_usd": self.order_notional_usd,
+            "action_scheme": self.action_scheme,
+            "trade_sizes": list(self.trade_sizes),
             "model_path": self.model_path,
         }
 
@@ -59,6 +63,8 @@ class TensorTradePipelineConfig:
             train_episodes=data.get("train_episodes", 3),
             train_steps=data.get("train_steps", 200),
             order_notional_usd=data.get("order_notional_usd", 1000.0),
+            action_scheme=data.get("action_scheme", "bsh"),
+            trade_sizes=[float(value) for value in data.get("trade_sizes", [1.0])],
             model_path=data.get("model_path", "artifacts/alpaca_online_policy.keras"),
         )
 
@@ -68,6 +74,8 @@ class TensorTradePipelineConfig:
             window_size=self.window_size,
             cash=self.cash,
             commission=self.commission,
+            action_scheme=self.action_scheme,
+            trade_sizes=list(self.trade_sizes),
         )
 
 
@@ -230,19 +238,90 @@ class TensorTradeModelExecutor:
             raise FileNotFoundError(f"artefato de modelo nao encontrado: {model.artifact_path}")
 
         keras_model = tf.keras.models.load_model(str(model_path))
-        action = infer_latest_action(keras_model, self.feature_df, self.config)
-        side = OrderSide.BUY if action == 1 else OrderSide.SELL
+        env = build_tensortrade_env(self.feature_df, self.config.env_config())
+        legacy_env = LegacyTradingEnvAdapter(env)
+        expected_action_count = legacy_env.action_space.n
+        output_shape = keras_model.output_shape
+        model_action_count = int(output_shape[-1]) if isinstance(output_shape, tuple) else int(output_shape[0][-1])
+        if model_action_count != expected_action_count:
+            raise ValueError(
+                "saida do modelo incompatível com action_space atual: "
+                f"modelo={model_action_count} env={expected_action_count} action_scheme={self.config.action_scheme}"
+            )
+
+        state = legacy_env.reset()
+        done = False
+        action = 0
+        while not done:
+            logits = keras_model(np.expand_dims(state, 0))
+            action = int(np.argmax(logits))
+            state, _reward, done, _info = legacy_env.step(action)
 
         latest_close = float(self.feature_df["close"].iloc[-1])
         latest_features = self.feature_df.iloc[-1].to_dict()
         latest_features["close"] = latest_close
-
-        return OrderIntent(
+        return _build_order_intent_from_action(
+            action=action,
+            action_scheme=self.config.action_scheme,
+            action_scheme_instance=getattr(env, "action_scheme", None),
             model_id=model.model_id,
             symbol=self.config.symbol,
+            latest_close=latest_close,
+            latest_features=latest_features,
+            default_notional_usd=self.config.order_notional_usd,
+        )
+
+
+def _build_order_intent_from_action(
+    *,
+    action: int,
+    action_scheme: str,
+    action_scheme_instance: Any,
+    model_id: str,
+    symbol: str,
+    latest_close: float,
+    latest_features: Mapping[str, Any],
+    default_notional_usd: float,
+) -> OrderIntent:
+    reason_prefix = f"tensortrade_action={action} action_scheme={action_scheme}"
+
+    if action_scheme == "simple_orders":
+        if action == 0:
+            return OrderIntent(
+                model_id=model_id,
+                symbol=symbol,
+                side=OrderSide.HOLD,
+                confidence=1.0,
+                reason=f"{reason_prefix} hold features={dict(latest_features)}",
+                reference_price=latest_close,
+            )
+
+        action_payload = getattr(action_scheme_instance, "actions", None)
+        if not action_payload:
+            raise RuntimeError("action scheme simple_orders nao expôs catalogo de acoes")
+
+        _exchange_pair, (_criteria, proportion, _duration, trade_side) = action_payload[action]
+        side_name = getattr(trade_side, "name", str(trade_side)).lower()
+        side = OrderSide.BUY if side_name == "buy" else OrderSide.SELL
+        proportion = float(proportion)
+        return OrderIntent(
+            model_id=model_id,
+            symbol=symbol,
             side=side,
-            notional_usd=max(self.config.order_notional_usd, latest_close),
+            notional_usd=max(default_notional_usd, latest_close) if side is OrderSide.BUY else 0.0,
+            size_fraction=proportion,
             confidence=1.0,
-            reason=f"tensortrade_action={action} features={latest_features}",
+            reason=f"{reason_prefix} proportion={proportion} side={side.value} features={dict(latest_features)}",
             reference_price=latest_close,
         )
+
+    side = OrderSide.BUY if action == 1 else OrderSide.SELL
+    return OrderIntent(
+        model_id=model_id,
+        symbol=symbol,
+        side=side,
+        notional_usd=max(default_notional_usd, latest_close),
+        confidence=1.0,
+        reason=f"{reason_prefix} legacy_bsh features={dict(latest_features)}",
+        reference_price=latest_close,
+    )

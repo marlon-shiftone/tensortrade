@@ -1,0 +1,596 @@
+{
+  "cash_usd": 9000.0,
+  "equity_curve": [
+    {
+      "at": "2026-03-30T21:22:58.131230+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:26:14.528451+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:27:19.389256+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:28:24.251605+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:29:29.081003+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:30:33.888418+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:31:38.726187+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:32:43.587371+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:33:48.542506+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:34:53.341798+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:35:58.203338+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:37:03.065251+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:38:07.890587+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:39:12.726664+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:40:17.424503+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:41:22.305143+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:42:27.170774+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:43:32.026227+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:44:36.941829+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:45:41.975704+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:46:47.523617+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:47:52.541862+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:48:57.278501+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:50:01.999659+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:51:06.861210+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:52:11.713100+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:53:16.677481+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:54:21.492618+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:55:26.228500+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:56:31.215071+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:57:36.083195+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:58:40.937737+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T21:59:45.974956+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:00:50.970858+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:01:55.974465+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:03:00.929617+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:04:05.967269+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:05:10.918523+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:06:15.951628+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:07:20.812837+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:08:25.690407+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:09:30.772267+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:10:35.679641+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:11:40.832288+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:12:45.768013+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:13:50.872700+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:14:55.751411+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:16:00.815775+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:17:05.690712+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:18:10.583301+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:19:15.319655+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:20:20.218069+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:21:25.105467+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:22:29.982202+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:23:35.054470+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:24:40.018667+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:25:44.880589+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:26:50.205370+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:27:55.091857+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:28:59.948687+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:30:04.841599+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:31:09.734238+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:32:14.642441+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:33:19.594794+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:34:24.659377+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:35:29.899038+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:36:34.855412+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:37:39.762689+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:38:44.671335+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:39:49.595201+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:40:54.520132+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:41:59.397576+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:43:04.226609+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:44:09.072425+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:45:13.998339+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:46:18.952340+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:47:23.911708+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:48:28.690304+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:49:33.692482+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:50:38.585096+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:51:43.493863+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:52:48.413526+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:53:53.326108+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:54:58.310578+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:56:03.237503+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:57:08.229387+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:58:13.662676+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T22:59:18.571416+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T23:00:23.449200+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T23:01:28.294467+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T23:02:33.218771+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T23:03:38.080272+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-03-30T23:04:17.950055+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:30:39.856293+00:00",
+      "equity": 10030.25697146563,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:31:41.393584+00:00",
+      "equity": 10029.709792477302,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:32:42.835998+00:00",
+      "equity": 10030.25697146563,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:33:44.399655+00:00",
+      "equity": 10029.345006485084,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:34:45.920512+00:00",
+      "equity": 10028.047989623865,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:35:47.456215+00:00",
+      "equity": 10027.277885862517,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:36:48.948505+00:00",
+      "equity": 10027.298151750972,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:37:50.469183+00:00",
+      "equity": 10027.440012970168,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:38:52.079159+00:00",
+      "equity": 10027.31841763943,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:39:53.583715+00:00",
+      "equity": 10028.25064850843,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:40:55.274166+00:00",
+      "equity": 10029.66926070039,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:41:56.807728+00:00",
+      "equity": 10028.818093385215,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:42:58.324142+00:00",
+      "equity": 10029.871919584955,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:43:59.869796+00:00",
+      "equity": 10030.885214007782,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:45:01.487911+00:00",
+      "equity": 10030.19617380026,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:46:03.249232+00:00",
+      "equity": 10030.277237354087,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:47:04.899507+00:00",
+      "equity": 10029.507133592737,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:48:06.562970+00:00",
+      "equity": 10029.912451361868,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:49:08.146569+00:00",
+      "equity": 10029.48686770428,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T14:50:05.403155+00:00",
+      "equity": 10030.520428015565,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-01T15:07:42.320248+00:00",
+      "equity": 10029.770590142673,
+      "source": "shadow_champion"
+    }
+  ],
+  "initial_cash_usd": 10000.0,
+  "positions": {
+    "AAPL": {
+      "cost_basis_usd": 1000.0,
+      "last_price": 254.065,
+      "opened_at": "2026-03-30T21:22:58.131230+00:00",
+      "qty": 4.053177691309987
+    }
+  },
+  "realized_pnl": 0.0,
+  "trade_history": [
+    {
+      "at": "2026-03-30T21:22:58.131230+00:00",
+      "notional": 1000.0,
+      "price": 246.72,
+      "qty": 4.053177691309987,
+      "realized_pnl": 0.0,
+      "side": "buy",
+      "symbol": "AAPL"
+    }
+  ]
+}

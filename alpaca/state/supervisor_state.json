@@ -1,0 +1,11 @@
+{
+  "live": {},
+  "paper": {
+    "alpaca_aapl_v2": {
+      "consecutive_bad_windows": 2274
+    },
+    "alpaca_spy_v1": {
+      "consecutive_bad_windows": 116
+    }
+  }
+}

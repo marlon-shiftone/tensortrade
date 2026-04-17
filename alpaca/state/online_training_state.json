@@ -1,0 +1,9 @@
+{
+  "challenger_created_at": "2026-04-01T15:14:14.242349+00:00",
+  "challenger_model_id": "alpaca_aapl_v2_rt_20260401T151401Z",
+  "champion_model_id": "alpaca_aapl_v2",
+  "evaluation_iterations": 2272,
+  "last_cycle_status": "processed",
+  "last_processed_bar_at": "2026-04-17T19:35:00+00:00",
+  "last_seen_bar_at": "2026-04-17T19:35:00+00:00"
+}

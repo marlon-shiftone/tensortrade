@@ -56,7 +56,12 @@ def _compute_max_drawdown(equity: np.ndarray) -> float:
     if equity.size == 0:
         return 0.0
     rolling_max = np.maximum.accumulate(equity)
-    drawdowns = np.where(rolling_max == 0, 0.0, (rolling_max - equity) / rolling_max)
+    drawdowns = np.divide(
+        rolling_max - equity,
+        rolling_max,
+        out=np.zeros_like(equity, dtype=float),
+        where=rolling_max != 0,
+    )
     return float(drawdowns.max()) if drawdowns.size else 0.0
 
 

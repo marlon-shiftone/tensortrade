@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 import tensortrade.env.default as default
@@ -17,6 +17,8 @@ class TensorTradeEnvConfig:
     window_size: int = 30
     cash: float = 10000.0
     commission: float = 0.001
+    action_scheme: str = "bsh"
+    trade_sizes: list[float] = field(default_factory=lambda: [1.0])
 
 
 def create_asset(symbol: str) -> Instrument:
@@ -49,10 +51,19 @@ def build_tensortrade_env(feature_df: pd.DataFrame, config: TensorTradeEnvConfig
             streams.append(Stream.source(feature_df[column].tolist(), dtype="float").rename(f"{asset.symbol}:{column}"))
 
     feed = DataFeed(streams)
-    action_scheme = default.actions.BSH(
-        cash=portfolio.get_wallet(exchange.id, USD),
-        asset=portfolio.get_wallet(exchange.id, asset),
-    )
+    if config.action_scheme == "simple_orders":
+        action_scheme = default.actions.SimpleOrders(
+            trade_sizes=config.trade_sizes,
+            min_order_pct=0.0,
+            min_order_abs=0.0,
+        )
+    elif config.action_scheme == "bsh":
+        action_scheme = default.actions.BSH(
+            cash=portfolio.get_wallet(exchange.id, USD),
+            asset=portfolio.get_wallet(exchange.id, asset),
+        )
+    else:
+        raise ValueError(f"action_scheme invalido: {config.action_scheme}")
     reward_scheme = default.rewards.SimpleProfit(window_size=5)
     return default.create(
         portfolio=portfolio,

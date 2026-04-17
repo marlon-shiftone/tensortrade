@@ -139,20 +139,26 @@ class KuCoinPaperLedger:
         current_qty = _safe_float(position.get("qty"))
 
         if intent.side is OrderSide.BUY:
-            if current_qty > 0:
+            if current_qty > 0 and intent.size_fraction is None:
                 return "paper-noop-already-long"
-
-            spend = min(_safe_float(intent.notional_usd), _safe_float(state.get("cash_usd")))
+            requested_spend = (
+                _safe_float(state.get("cash_usd")) * _safe_float(intent.size_fraction)
+                if intent.size_fraction is not None
+                else _safe_float(intent.notional_usd)
+            )
+            spend = min(requested_spend, _safe_float(state.get("cash_usd")))
             if spend <= 0:
                 return "paper-noop-insufficient-cash"
 
             quantity = spend / reference_price
+            new_qty = current_qty + quantity
+            new_cost_basis = _safe_float(position.get("cost_basis_usd")) + spend
             state["cash_usd"] = _safe_float(state.get("cash_usd")) - spend
             state["positions"][symbol] = {
-                "qty": quantity,
-                "cost_basis_usd": spend,
+                "qty": new_qty,
+                "cost_basis_usd": new_cost_basis,
                 "last_price": reference_price,
-                "opened_at": utc_now_iso(),
+                "opened_at": position.get("opened_at") or utc_now_iso(),
             }
             state.setdefault("trade_history", []).append(
                 {
@@ -174,22 +180,38 @@ class KuCoinPaperLedger:
             if current_qty <= 0:
                 return "paper-noop-no-position"
 
+            sell_qty = current_qty
+            if intent.size_fraction is not None:
+                sell_qty = min(current_qty, current_qty * _safe_float(intent.size_fraction))
+            if sell_qty <= 0:
+                return "paper-noop-no-position"
+
             cost_basis = _safe_float(position.get("cost_basis_usd"))
-            proceeds = current_qty * reference_price
-            realized_pnl = proceeds - cost_basis
+            cost_basis_sold = cost_basis * (sell_qty / current_qty)
+            proceeds = sell_qty * reference_price
+            realized_pnl = proceeds - cost_basis_sold
             state["cash_usd"] = _safe_float(state.get("cash_usd")) + proceeds
             state["realized_pnl"] = _safe_float(state.get("realized_pnl")) + realized_pnl
-            state["positions"].pop(symbol, None)
+            remaining_qty = current_qty - sell_qty
+            if remaining_qty <= 1e-12:
+                state["positions"].pop(symbol, None)
+            else:
+                state["positions"][symbol] = {
+                    "qty": remaining_qty,
+                    "cost_basis_usd": cost_basis - cost_basis_sold,
+                    "last_price": reference_price,
+                    "opened_at": position.get("opened_at") or utc_now_iso(),
+                }
             state.setdefault("trade_history", []).append(
                 {
                     "at": utc_now_iso(),
                     "symbol": symbol,
                     "side": "sell",
-                    "qty": current_qty,
+                    "qty": sell_qty,
                     "price": reference_price,
                     "notional": proceeds,
                     "realized_pnl": realized_pnl,
-                    "cost_basis_usd": cost_basis,
+                    "cost_basis_usd": cost_basis_sold,
                 }
             )
             reference = f"paper-sell-{len(state['trade_history'])}"
@@ -238,6 +260,14 @@ class KuCoinTradingBroker:
         totals = balance.get("total", {})
         return _safe_float(totals.get(base_asset))
 
+    def _current_live_quote_balance(self, symbol: str) -> float:
+        exchange = self._client_for_live()
+        _base_asset, quote_asset = split_symbol(symbol)
+        balance = exchange.fetch_balance()
+        free = balance.get("free", {})
+        total = balance.get("total", {})
+        return _safe_float(free.get(quote_asset), _safe_float(total.get(quote_asset)))
+
     def submit(self, intent: OrderIntent, mode: RunMode) -> str:
         symbol = normalize_symbol(intent.symbol)
 
@@ -251,11 +281,18 @@ class KuCoinTradingBroker:
         position_qty = self._current_live_position_qty(symbol)
 
         if intent.side is OrderSide.BUY:
-            if position_qty > 0:
+            if position_qty > 0 and intent.size_fraction is None:
                 return f"{mode.value}-noop-already-long"
+            spend = (
+                self._current_live_quote_balance(symbol) * _safe_float(intent.size_fraction)
+                if intent.size_fraction is not None
+                else round(intent.notional_usd, 8)
+            )
+            if spend <= 0:
+                return f"{mode.value}-noop-insufficient-cash"
             result = exchange.create_market_buy_order_with_cost(
                 symbol,
-                round(intent.notional_usd, 8),
+                round(spend, 8),
             )
             return str(
                 result.get("id")
@@ -267,7 +304,12 @@ class KuCoinTradingBroker:
         if intent.side is OrderSide.SELL:
             if position_qty <= 0:
                 return f"{mode.value}-noop-no-position"
-            result = exchange.create_order(symbol, "market", "sell", position_qty)
+            sell_qty = position_qty
+            if intent.size_fraction is not None:
+                sell_qty = position_qty * _safe_float(intent.size_fraction)
+            if sell_qty <= 0:
+                return f"{mode.value}-noop-no-position"
+            result = exchange.create_order(symbol, "market", "sell", round(sell_qty, 8))
             return str(
                 result.get("id")
                 or result.get("clientOrderId")

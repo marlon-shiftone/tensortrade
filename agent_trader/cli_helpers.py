@@ -4,9 +4,29 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .json_utils import json_default
+
 
 def print_json(payload: dict[str, Any]) -> None:
-    print(json.dumps(payload, indent=2, sort_keys=True))
+    print(json.dumps(payload, indent=2, sort_keys=True, default=json_default))
+
+
+def parse_trade_sizes(raw_value: Any) -> list[float] | None:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, (list, tuple)):
+        values = [float(value) for value in raw_value]
+    else:
+        parts = [part.strip() for part in str(raw_value).split(",")]
+        values = [float(part) for part in parts if part]
+
+    if not values:
+        return None
+
+    for value in values:
+        if value <= 0 or value > 1:
+            raise ValueError("trade_sizes deve conter valores entre 0 e 1")
+    return values
 
 
 def add_pipeline_args(
@@ -26,6 +46,8 @@ def add_pipeline_args(
     parser.add_argument("--train-episodes", type=int, default=None)
     parser.add_argument("--train-steps", type=int, default=None)
     parser.add_argument("--order-notional-usd", type=float, default=None)
+    parser.add_argument("--action-scheme", choices=["bsh", "simple_orders"], default=None)
+    parser.add_argument("--trade-sizes", default=None, help="Lista separada por virgula com proporcoes entre 0 e 1.")
     parser.add_argument("--model-path", default=None)
 
 
@@ -66,6 +88,8 @@ def pipeline_config_from_args(
         "order_notional_usd": (
             args.order_notional_usd if args.order_notional_usd is not None else base_data.get("order_notional_usd", 1000.0)
         ),
+        "action_scheme": args.action_scheme or base_data.get("action_scheme", "bsh"),
+        "trade_sizes": parse_trade_sizes(args.trade_sizes) or parse_trade_sizes(base_data.get("trade_sizes")) or [1.0],
         "model_path": resolve_model_path(
             explicit_model_path=args.model_path or base_data.get("model_path"),
             artifacts_dir=artifacts_dir,

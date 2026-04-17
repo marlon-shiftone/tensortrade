@@ -132,6 +132,7 @@ class OrderIntent:
     symbol: str
     side: OrderSide
     notional_usd: float = 0.0
+    size_fraction: float | None = None
     confidence: float = 0.0
     reason: str = ""
     reference_price: float | None = None
@@ -142,6 +143,7 @@ class OrderIntent:
             "symbol": self.symbol,
             "side": self.side.value,
             "notional_usd": self.notional_usd,
+            "size_fraction": self.size_fraction,
             "confidence": self.confidence,
             "reason": self.reason,
             "reference_price": self.reference_price,

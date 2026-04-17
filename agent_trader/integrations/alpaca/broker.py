@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 
@@ -52,6 +53,18 @@ class AlpacaTradingBroker:
         except Exception:
             return 0.0
 
+    def _available_cash(self, mode: RunMode) -> float:
+        client = self._client_for_mode(mode)
+        try:
+            account = client.get_account()
+            return float(getattr(account, "cash", 0.0) or 0.0)
+        except Exception:
+            return 0.0
+
+    def _floor_qty(self, quantity: float, precision: int = 6) -> float:
+        scale = 10**precision
+        return math.floor(max(quantity, 0.0) * scale) / scale
+
     def submit(self, intent: OrderIntent, mode: RunMode) -> str:
         from alpaca.trading.enums import OrderSide as AlpacaOrderSide
         from alpaca.trading.enums import TimeInForce
@@ -60,20 +73,30 @@ class AlpacaTradingBroker:
         position_qty = self._current_position_qty(mode, intent.symbol)
 
         if intent.side == OrderSide.BUY:
-            if position_qty > 0:
-                return f"{mode.value}-noop-already-long"
+            if intent.size_fraction is not None:
+                spend = round(self._available_cash(mode) * max(intent.size_fraction, 0.0), 2)
+            else:
+                spend = round(intent.notional_usd, 2)
+            if spend <= 0:
+                return f"{mode.value}-noop-insufficient-cash"
             order = MarketOrderRequest(
                 symbol=intent.symbol,
-                notional=round(intent.notional_usd, 2),
+                notional=spend,
                 side=AlpacaOrderSide.BUY,
                 time_in_force=TimeInForce.DAY,
             )
         elif intent.side == OrderSide.SELL:
             if position_qty <= 0:
                 return f"{mode.value}-noop-no-position"
+            sell_qty = abs(position_qty)
+            if intent.size_fraction is not None:
+                sell_qty = abs(position_qty) * max(intent.size_fraction, 0.0)
+            sell_qty = self._floor_qty(sell_qty, precision=6)
+            if sell_qty <= 0:
+                return f"{mode.value}-noop-no-position"
             order = MarketOrderRequest(
                 symbol=intent.symbol,
-                qty=abs(position_qty),
+                qty=sell_qty,
                 side=AlpacaOrderSide.SELL,
                 time_in_force=TimeInForce.DAY,
             )

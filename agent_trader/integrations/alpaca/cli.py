@@ -7,10 +7,11 @@ from pathlib import Path
 
 from ...cli_helpers import add_pipeline_args, pipeline_config_from_args, print_json
 from ...config import AppConfig
-from ...domain import PerformanceSnapshot, RunMode
+from ...domain import OrderSide, PerformanceSnapshot, RunMode
 from ...registry import ModelRegistry
 from ...storage import (
     ExecutionResultStore,
+    JsonlStore,
     PerformanceSnapshotStore,
     SupervisorReportStore,
     SupervisorStateStore,
@@ -67,6 +68,18 @@ def _add_metrics_collection_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--history-timeframe", default="1D")
     parser.add_argument("--orders-limit", type=int, default=500)
     parser.add_argument("--after-days", type=int, default=30)
+
+
+def _add_online_training_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--iterations", type=int, default=0, help="0 significa loop continuo.")
+    parser.add_argument("--sleep-seconds", type=int, default=60)
+    parser.add_argument("--retrain-suffix", default="rt")
+    parser.add_argument("--shadow-eval-iterations", type=int, default=10)
+    parser.add_argument("--shadow-min-trades", type=int, default=2)
+    parser.add_argument("--shadow-wins-required", type=int, default=3)
+    parser.add_argument("--shadow-cash", type=float, default=10000.0)
+    parser.add_argument("--no-auto-promote-paper", action="store_true")
+    parser.add_argument("--stop-on-pause", action="store_true")
 
 
 def register_parser(subparsers) -> None:
@@ -133,6 +146,16 @@ def register_parser(subparsers) -> None:
     operate.add_argument("--no-auto-retrain", action="store_true")
     operate.add_argument("--retrain-suffix", default="rt")
     operate.set_defaults(handler=handle_operate)
+
+    online_train = commands.add_parser(
+        "online-train",
+        help="Opera em paper, monitora degradacao, retreina challenger e promove em shadow quando passar.",
+    )
+    add_pipeline_args(online_train, include_model_id=True, symbol_required=False)
+    online_train.add_argument("--dry-run", action="store_true")
+    _add_metrics_collection_args(online_train)
+    _add_online_training_args(online_train)
+    online_train.set_defaults(handler=handle_online_train)
 
     paper = commands.add_parser("mark-paper-ready", help="Marca modelo como pronto para paper.")
     paper.add_argument("--model-id", required=True)
@@ -280,15 +303,7 @@ def handle_run(args) -> int:
 
 
 def _resolved_pipeline_for_model(args, config: AppConfig, registry: ModelRegistry):
-    current_model = registry.get_model(args.model_id)
-    base_training_job = current_model.metadata.get("training_job", {})
-    pipeline = pipeline_config_from_args(
-        args=args,
-        artifacts_dir=config.artifacts_dir,
-        model_id=args.model_id,
-        base_data=base_training_job,
-    )
-    return current_model, pipeline
+    return _resolved_pipeline_for_model_id(args, config, registry, args.model_id)
 
 
 def _metrics_config_from_args(args):
@@ -300,6 +315,78 @@ def _metrics_config_from_args(args):
         orders_limit=args.orders_limit,
         after_days=args.after_days,
     )
+
+
+def _resolved_pipeline_for_model_id(
+    args,
+    config: AppConfig,
+    registry: ModelRegistry,
+    model_id: str,
+):
+    current_model = registry.get_model(model_id)
+    base_training_job = current_model.metadata.get("training_job", {})
+    pipeline = pipeline_config_from_args(
+        args=args,
+        artifacts_dir=config.artifacts_dir,
+        model_id=model_id,
+        base_data=base_training_job,
+    )
+    return current_model, pipeline
+
+
+def _train_alpaca_challenger(
+    *,
+    args,
+    config: AppConfig,
+    registry: ModelRegistry,
+    parent_model_id: str,
+    new_model_id: str,
+    snapshot: PerformanceSnapshot,
+    market_data_client,
+    trainer_source: str,
+) -> dict:
+    from ...training import TensorTradePipelineConfig, TensorTradeTrainer
+
+    current_model = registry.get_model(parent_model_id)
+    training_job = current_model.metadata.get("training_job")
+    if not training_job:
+        raise RuntimeError(
+            f"modelo {current_model.model_id} nao possui metadados de treino para auto-retreino"
+        )
+
+    retrain_pipeline = TensorTradePipelineConfig.from_dict(training_job)
+    retrain_pipeline.model_path = str(config.artifacts_dir / f"{new_model_id}.keras")
+
+    trainer = TensorTradeTrainer(registry=registry)
+    features = trainer.train_from_alpaca(
+        market_data_client=market_data_client,
+        config=retrain_pipeline,
+    )
+    record = trainer.register_training_output(
+        model_id=new_model_id,
+        config=retrain_pipeline,
+        feature_df=features,
+        notes=f"auto_retrain_from={current_model.model_id} snapshot_at={snapshot.as_of}",
+    )
+    training_payload = {
+        "rows_trained": len(features),
+        "pipeline": retrain_pipeline.to_dict(),
+        "source": trainer_source,
+        "trigger_model_id": current_model.model_id,
+        "trigger_snapshot": snapshot.to_dict(),
+    }
+    TrainingRunStore(config.training_history_path).append_run(
+        project=config.project_name,
+        model_id=new_model_id,
+        trainer="tensortrade",
+        payload=training_payload,
+    )
+    return {
+        "new_model": record.to_dict(),
+        "training_payload": training_payload,
+        "pipeline": retrain_pipeline,
+        "feature_rows": len(features),
+    }
 
 
 def handle_collect_metrics(args) -> int:
@@ -379,7 +466,6 @@ def handle_review(args) -> int:
 
 def handle_supervise(args) -> int:
     from ...integrations.alpaca import AlpacaHistoricalDataClient, AlpacaMarketDataConfig
-    from ...training import TensorTradePipelineConfig, TensorTradeTrainer
 
     config, registry = _build_registry(args)
     supervisor = Supervisor(config.thresholds)
@@ -394,51 +480,26 @@ def handle_supervise(args) -> int:
     current_model = registry.get_model(args.model_id)
 
     def retrain_callback(snapshot: PerformanceSnapshot) -> dict:
-        training_job = current_model.metadata.get("training_job")
-        if not training_job:
-            raise RuntimeError(
-                f"modelo {current_model.model_id} nao possui metadados de treino para auto-retreino"
-            )
-
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         new_model_id = f"{current_model.model_id}_{args.retrain_suffix}_{timestamp}"
-        pipeline = TensorTradePipelineConfig.from_dict(training_job)
-        pipeline.model_path = str(config.artifacts_dir / f"{new_model_id}.keras")
-
-        trainer = TensorTradeTrainer(registry=registry)
-        features = trainer.train_from_alpaca(
+        retrain_result = _train_alpaca_challenger(
+            args=args,
+            config=config,
+            registry=registry,
+            parent_model_id=current_model.model_id,
+            new_model_id=new_model_id,
+            snapshot=snapshot,
             market_data_client=AlpacaHistoricalDataClient(AlpacaMarketDataConfig.from_env()),
-            config=pipeline,
-        )
-        record = trainer.register_training_output(
-            model_id=new_model_id,
-            config=pipeline,
-            feature_df=features,
-            notes=(
-                f"auto_retrain_from={current_model.model_id} snapshot_at={snapshot.as_of}"
-            ),
+            trainer_source="supervisor_auto_retrain",
         )
         paper_record = registry.mark_paper_ready(
             new_model_id,
             notes=f"auto retrain challenger derivado de {current_model.model_id}",
         )
-        training_payload = {
-            "rows_trained": len(features),
-            "pipeline": pipeline.to_dict(),
-            "source": "supervisor_auto_retrain",
-            "trigger_model_id": current_model.model_id,
-            "trigger_snapshot": snapshot.to_dict(),
-        }
-        TrainingRunStore(config.training_history_path).append_run(
-            project=config.project_name,
-            model_id=new_model_id,
-            trainer="tensortrade",
-            payload=training_payload,
-        )
         return {
-            "new_model": record.to_dict(),
+            "new_model": retrain_result["new_model"],
             "paper_record": paper_record.to_dict(),
-            "training_payload": training_payload,
+            "training_payload": retrain_result["training_payload"],
         }
 
     result = loop.run_once(
@@ -478,54 +539,30 @@ def handle_operate(args) -> int:
     )
 
     def retrain_callback(snapshot: PerformanceSnapshot) -> dict:
-        training_job = model.metadata.get("training_job")
-        if not training_job:
-            raise RuntimeError(
-                f"modelo {model.model_id} nao possui metadados de treino para auto-retreino"
-            )
-
-        from ...training import TensorTradePipelineConfig, TensorTradeTrainer
-
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         new_model_id = f"{model.model_id}_{args.retrain_suffix}_{timestamp}"
-        retrain_pipeline = TensorTradePipelineConfig.from_dict(training_job)
-        retrain_pipeline.model_path = str(config.artifacts_dir / f"{new_model_id}.keras")
-
-        trainer = TensorTradeTrainer(registry=registry)
-        features = trainer.train_from_alpaca(
+        retrain_result = _train_alpaca_challenger(
+            args=args,
+            config=config,
+            registry=registry,
+            parent_model_id=model.model_id,
+            new_model_id=new_model_id,
+            snapshot=snapshot,
             market_data_client=market_data_client,
-            config=retrain_pipeline,
-        )
-        record = trainer.register_training_output(
-            model_id=new_model_id,
-            config=retrain_pipeline,
-            feature_df=features,
-            notes=f"auto_retrain_from={model.model_id} snapshot_at={snapshot.as_of}",
+            trainer_source="supervisor_auto_retrain",
         )
         paper_record = registry.mark_paper_ready(
             new_model_id,
             notes=f"auto retrain challenger derivado de {model.model_id}",
         )
-        training_payload = {
-            "rows_trained": len(features),
-            "pipeline": retrain_pipeline.to_dict(),
-            "source": "supervisor_auto_retrain",
-            "trigger_model_id": model.model_id,
-            "trigger_snapshot": snapshot.to_dict(),
-        }
-        TrainingRunStore(config.training_history_path).append_run(
-            project=config.project_name,
-            model_id=new_model_id,
-            trainer="tensortrade",
-            payload=training_payload,
-        )
         return {
-            "new_model": record.to_dict(),
+            "new_model": retrain_result["new_model"],
             "paper_record": paper_record.to_dict(),
-            "training_payload": training_payload,
+            "training_payload": retrain_result["training_payload"],
         }
 
     cycle_results = []
+    keep_cycle_results = args.iterations > 0
     for iteration in range(args.iterations):
         bars = market_data_client.load_recent_bars(
             symbol=pipeline.symbol,
@@ -602,6 +639,510 @@ def handle_operate(args) -> int:
             "mode": mode.value,
             "iterations": args.iterations,
             "results": cycle_results,
+        }
+    )
+    return 0
+
+
+def _shadow_ledger_path(config: AppConfig, model_id: str) -> Path:
+    return config.state_dir / "shadow_training" / f"{model_id}.json"
+
+
+def _run_shadow_snapshot(
+    *,
+    args,
+    config: AppConfig,
+    registry: ModelRegistry,
+    model_id: str,
+    feature_df,
+    latest_close: float,
+    shadow_cash: float,
+    source: str,
+) -> dict:
+    from ...integrations.alpaca import ShadowPaperLedger, compute_feature_drift
+    from ...training import TensorTradeModelExecutor
+
+    model, pipeline = _resolved_pipeline_for_model_id(args, config, registry, model_id)
+    executor = TensorTradeModelExecutor(feature_df=feature_df, config=pipeline)
+    intent = executor.predict_order(feature_df.iloc[-1].to_dict(), model)
+    ledger = ShadowPaperLedger(
+        path=_shadow_ledger_path(config, model_id),
+        initial_cash_usd=shadow_cash,
+    )
+    if intent.side != OrderSide.HOLD:
+        reference = ledger.submit(intent)
+    else:
+        reference = "shadow-noop-hold"
+
+    ledger.record_mark_to_market(
+        symbol_prices={pipeline.symbol: latest_close},
+        source=source,
+    )
+    snapshot = ledger.build_snapshot(
+        symbol=pipeline.symbol,
+        feature_drift=compute_feature_drift(model.metadata.get("feature_reference", {}), feature_df),
+        metadata={
+            "source": source,
+            "latest_close": latest_close,
+            "reference": reference,
+        },
+    )
+    return {
+        "model": model,
+        "pipeline": pipeline,
+        "intent": intent.to_dict(),
+        "reference": reference,
+        "snapshot": snapshot,
+    }
+
+
+def handle_online_train(args) -> int:
+    from ...features import engineer_features
+    from ...integrations.alpaca import (
+        AlpacaBrokerConfig,
+        AlpacaHistoricalDataClient,
+        AlpacaMarketDataConfig,
+        AlpacaMetricsCollector,
+        AlpacaTradingBroker,
+        ChallengerPromotionPolicy,
+        OnlineTrainingState,
+        OnlineTrainingStateStore,
+        ShadowPaperLedger,
+        evaluate_challenger_promotion,
+    )
+    from ...runtime import AllowAllRiskManager, TradingRuntime
+    from ...training import TensorTradeModelExecutor
+
+    config, registry = _build_registry(args)
+    market_data_client = AlpacaHistoricalDataClient(AlpacaMarketDataConfig.from_env())
+    broker = AlpacaTradingBroker(AlpacaBrokerConfig.from_env(dry_run=args.dry_run))
+    supervisor = Supervisor(config.thresholds)
+    loop = SupervisorLoop(
+        project=config.project_name,
+        registry=registry,
+        snapshot_store=PerformanceSnapshotStore(config.metrics_history_path),
+        report_store=SupervisorReportStore(config.supervisor_reports_path),
+        state_store=SupervisorStateStore(config.supervisor_state_path),
+        supervisor=supervisor,
+    )
+    online_state_store = OnlineTrainingStateStore(config.state_dir / "online_training_state.json")
+    shadow_store = JsonlStore(config.reports_dir / "online_training_shadow.jsonl")
+    promotion_policy = ChallengerPromotionPolicy(
+        evaluation_iterations=args.shadow_eval_iterations,
+        evaluation_min_trades=args.shadow_min_trades,
+        challenger_wins_required=args.shadow_wins_required,
+    )
+
+    registry_state = registry.state()
+    active_paper_model_id = registry_state.get("paper_model_id") or args.model_id
+    if registry_state.get("paper_model_id") is None:
+        registry.mark_paper_ready(active_paper_model_id, notes="champion inicial do online-train")
+
+    online_state = online_state_store.load()
+    if online_state.champion_model_id != active_paper_model_id:
+        online_state = OnlineTrainingState(
+            champion_model_id=active_paper_model_id,
+            last_seen_bar_at=online_state.last_seen_bar_at,
+            last_processed_bar_at=online_state.last_processed_bar_at,
+        )
+        online_state_store.save(online_state)
+
+    cycle_results = []
+    keep_cycle_results = args.iterations > 0
+    iteration = 0
+    poll_iteration = 0
+    while True:
+        poll_iteration += 1
+        active_paper_model_id = registry.state().get("paper_model_id") or active_paper_model_id
+        if online_state.champion_model_id != active_paper_model_id:
+            online_state = OnlineTrainingState(
+                champion_model_id=active_paper_model_id,
+                last_seen_bar_at=online_state.last_seen_bar_at,
+                last_processed_bar_at=online_state.last_processed_bar_at,
+            )
+            online_state_store.save(online_state)
+
+        model, pipeline = _resolved_pipeline_for_model_id(
+            args,
+            config,
+            registry,
+            active_paper_model_id,
+        )
+        try:
+            bars = market_data_client.load_recent_bars(
+                symbol=pipeline.symbol,
+                timeframe_amount=pipeline.timeframe_amount,
+                timeframe_unit=pipeline.timeframe_unit,
+                lookback_bars=pipeline.lookback_bars,
+            )
+        except RuntimeError as exc:
+            message = str(exc)
+            if "Nenhum candle retornado" not in message and "Falha ao buscar candles" not in message:
+                raise
+
+            status = "waiting_market_data" if "Nenhum candle retornado" in message else "market_data_error"
+            online_state.last_cycle_status = status
+            online_state_store.save(online_state)
+            wait_record = ExecutionResultStore(config.execution_history_path).append_result(
+                project=config.project_name,
+                model_id=active_paper_model_id,
+                mode=RunMode.PAPER,
+                payload={
+                    "poll_iteration": poll_iteration,
+                    "processed_iterations": iteration,
+                    "source": f"online_train_{status}",
+                    "status": status,
+                    "symbol": pipeline.symbol,
+                    "last_processed_bar_at": online_state.last_processed_bar_at,
+                    "message": message,
+                    "pipeline": pipeline.to_dict(),
+                },
+            )
+            cycle_payload = {
+                "poll_iteration": poll_iteration,
+                "iteration": iteration,
+                "active_paper_model_id": active_paper_model_id,
+                "execution_record": wait_record,
+                "snapshot_record": None,
+                "supervise_result": None,
+                "online_state": online_state.to_dict(),
+                "shadow_result": None,
+            }
+            if keep_cycle_results:
+                cycle_results.append(cycle_payload)
+
+            print(
+                (
+                    f"[online-train] poll={poll_iteration} processed={iteration} "
+                    f"status={status} model={active_paper_model_id} "
+                    f"symbol={pipeline.symbol} last_bar={online_state.last_processed_bar_at or 'none'}"
+                ),
+                flush=True,
+            )
+
+            if args.iterations > 0 and iteration >= args.iterations:
+                break
+
+            time.sleep(args.sleep_seconds)
+            continue
+
+        feature_df = engineer_features(bars)
+        latest_bar_at = bars.index[-1].isoformat() if hasattr(bars.index[-1], "isoformat") else str(bars.index[-1])
+        latest_close = float(feature_df["close"].iloc[-1])
+
+        if online_state.last_seen_bar_at == latest_bar_at:
+            repeated_status = "waiting_new_bar"
+            if online_state.last_cycle_status == "waiting_history":
+                repeated_status = "waiting_history"
+            online_state.last_cycle_status = repeated_status
+            online_state_store.save(online_state)
+            wait_record = ExecutionResultStore(config.execution_history_path).append_result(
+                project=config.project_name,
+                model_id=active_paper_model_id,
+                mode=RunMode.PAPER,
+                payload={
+                    "poll_iteration": poll_iteration,
+                    "processed_iterations": iteration,
+                    "source": f"online_train_{repeated_status}",
+                    "status": repeated_status,
+                    "latest_bar_at": latest_bar_at,
+                    "latest_close": latest_close,
+                    "feature_rows": len(feature_df),
+                    "pipeline": pipeline.to_dict(),
+                },
+            )
+            cycle_payload = {
+                "poll_iteration": poll_iteration,
+                "iteration": iteration,
+                "active_paper_model_id": active_paper_model_id,
+                "execution_record": wait_record,
+                "snapshot_record": None,
+                "supervise_result": None,
+                "online_state": online_state.to_dict(),
+                "shadow_result": None,
+            }
+            if keep_cycle_results:
+                cycle_results.append(cycle_payload)
+
+            print(
+                (
+                    f"[online-train] poll={poll_iteration} processed={iteration} "
+                    f"status={repeated_status} model={active_paper_model_id} "
+                    f"symbol={pipeline.symbol} bar_at={latest_bar_at}"
+                ),
+                flush=True,
+            )
+
+            if args.iterations > 0 and iteration >= args.iterations:
+                break
+
+            time.sleep(args.sleep_seconds)
+            continue
+
+        minimum_feature_rows = max(pipeline.window_size + 5, 50)
+        if len(feature_df) < minimum_feature_rows:
+            online_state.last_seen_bar_at = latest_bar_at
+            online_state.last_cycle_status = "waiting_history"
+            online_state_store.save(online_state)
+            wait_record = ExecutionResultStore(config.execution_history_path).append_result(
+                project=config.project_name,
+                model_id=active_paper_model_id,
+                mode=RunMode.PAPER,
+                payload={
+                    "poll_iteration": poll_iteration,
+                    "processed_iterations": iteration,
+                    "source": "online_train_waiting_history",
+                    "status": "waiting_history",
+                    "latest_bar_at": latest_bar_at,
+                    "latest_close": latest_close,
+                    "feature_rows": len(feature_df),
+                    "minimum_feature_rows": minimum_feature_rows,
+                    "pipeline": pipeline.to_dict(),
+                },
+            )
+            cycle_payload = {
+                "poll_iteration": poll_iteration,
+                "iteration": iteration,
+                "active_paper_model_id": active_paper_model_id,
+                "execution_record": wait_record,
+                "snapshot_record": None,
+                "supervise_result": None,
+                "online_state": online_state.to_dict(),
+                "shadow_result": None,
+            }
+            if keep_cycle_results:
+                cycle_results.append(cycle_payload)
+
+            print(
+                (
+                    f"[online-train] poll={poll_iteration} processed={iteration} "
+                    f"status=waiting_history model={active_paper_model_id} "
+                    f"symbol={pipeline.symbol} bar_at={latest_bar_at} "
+                    f"feature_rows={len(feature_df)}/{minimum_feature_rows}"
+                ),
+                flush=True,
+            )
+
+            if args.iterations > 0 and iteration >= args.iterations:
+                break
+
+            time.sleep(args.sleep_seconds)
+            continue
+
+        iteration += 1
+
+        runtime = TradingRuntime(
+            registry=registry,
+            model_executor=TensorTradeModelExecutor(feature_df=feature_df, config=pipeline),
+            risk_manager=AllowAllRiskManager(),
+            broker=broker,
+        )
+        runtime.start(active_paper_model_id, RunMode.PAPER)
+        run_payload = runtime.run_once(
+            model_id=active_paper_model_id,
+            mode=RunMode.PAPER,
+            features=feature_df.iloc[-1].to_dict(),
+            context={"latest_close": latest_close},
+        )
+        execution_record = ExecutionResultStore(config.execution_history_path).append_result(
+            project=config.project_name,
+            model_id=active_paper_model_id,
+            mode=RunMode.PAPER,
+            payload={
+                "iteration": iteration,
+                "source": "online_train",
+                "latest_close": latest_close,
+                "result": run_payload,
+                "pipeline": pipeline.to_dict(),
+            },
+        )
+
+        collector = AlpacaMetricsCollector(
+            trading_client=broker.client_for_mode(RunMode.PAPER),
+            market_data_client=market_data_client,
+            config=_metrics_config_from_args(args),
+        )
+        snapshot = collector.collect_snapshot(
+            model=model,
+            symbol=pipeline.symbol,
+            timeframe_amount=pipeline.timeframe_amount,
+            timeframe_unit=pipeline.timeframe_unit,
+            lookback_bars=pipeline.lookback_bars,
+        )
+        snapshot_record = PerformanceSnapshotStore(config.metrics_history_path).append_snapshot(
+            project=config.project_name,
+            model_id=active_paper_model_id,
+            mode=RunMode.PAPER,
+            snapshot=snapshot,
+            source="online_train",
+            notes=f"iteration={iteration}",
+        )
+
+        def retrain_callback(trigger_snapshot: PerformanceSnapshot) -> dict:
+            current_state = online_state_store.load()
+            if current_state.challenger_model_id:
+                return {
+                    "skipped": True,
+                    "reason": (
+                        f"challenger {current_state.challenger_model_id} ja esta em avaliacao shadow"
+                    ),
+                }
+
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            challenger_model_id = f"{active_paper_model_id}_{args.retrain_suffix}_{timestamp}"
+            retrain_result = _train_alpaca_challenger(
+                args=args,
+                config=config,
+                registry=registry,
+                parent_model_id=active_paper_model_id,
+                new_model_id=challenger_model_id,
+                snapshot=trigger_snapshot,
+                market_data_client=market_data_client,
+                trainer_source="online_train_auto_retrain",
+            )
+
+            ShadowPaperLedger(
+                path=_shadow_ledger_path(config, active_paper_model_id),
+                initial_cash_usd=args.shadow_cash,
+            ).reset()
+            ShadowPaperLedger(
+                path=_shadow_ledger_path(config, challenger_model_id),
+                initial_cash_usd=args.shadow_cash,
+            ).reset()
+
+            next_state = OnlineTrainingState(
+                champion_model_id=active_paper_model_id,
+                challenger_model_id=challenger_model_id,
+                evaluation_iterations=0,
+                challenger_created_at=datetime.now(timezone.utc).isoformat(),
+                last_seen_bar_at=online_state.last_seen_bar_at,
+                last_processed_bar_at=online_state.last_processed_bar_at,
+            )
+            online_state_store.save(next_state)
+            return {
+                "new_model": retrain_result["new_model"],
+                "training_payload": retrain_result["training_payload"],
+                "shadow_state": next_state.to_dict(),
+            }
+
+        supervise_result = loop.run_once(
+            model_id=active_paper_model_id,
+            mode=RunMode.PAPER,
+            retrain_callback=retrain_callback,
+        )
+        online_state = online_state_store.load()
+
+        shadow_result = None
+        if online_state.challenger_model_id:
+            champion_shadow = _run_shadow_snapshot(
+                args=args,
+                config=config,
+                registry=registry,
+                model_id=online_state.champion_model_id,
+                feature_df=feature_df,
+                latest_close=latest_close,
+                shadow_cash=args.shadow_cash,
+                source="shadow_champion",
+            )
+            challenger_shadow = _run_shadow_snapshot(
+                args=args,
+                config=config,
+                registry=registry,
+                model_id=online_state.challenger_model_id,
+                feature_df=feature_df,
+                latest_close=latest_close,
+                shadow_cash=args.shadow_cash,
+                source="shadow_challenger",
+            )
+            online_state.evaluation_iterations += 1
+            online_state_store.save(online_state)
+
+            promotion_decision = evaluate_challenger_promotion(
+                champion_snapshot=champion_shadow["snapshot"],
+                challenger_snapshot=challenger_shadow["snapshot"],
+                evaluation_iterations=online_state.evaluation_iterations,
+                thresholds=config.thresholds,
+                policy=promotion_policy,
+            )
+            shadow_result = {
+                "champion_model_id": online_state.champion_model_id,
+                "challenger_model_id": online_state.challenger_model_id,
+                "evaluation_iterations": online_state.evaluation_iterations,
+                "champion_shadow_snapshot": champion_shadow["snapshot"].to_dict(),
+                "challenger_shadow_snapshot": challenger_shadow["snapshot"].to_dict(),
+                "promotion_decision": promotion_decision,
+            }
+            shadow_store.append(
+                {
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                    "project": config.project_name,
+                    "payload": shadow_result,
+                }
+            )
+
+            if promotion_decision["eligible"] and not args.no_auto_promote_paper:
+                paper_record = registry.mark_paper_ready(
+                    online_state.challenger_model_id,
+                    notes=(
+                        f"promovido automaticamente em shadow apos {online_state.evaluation_iterations} iteracoes"
+                    ),
+                )
+                online_state = OnlineTrainingState(champion_model_id=online_state.challenger_model_id)
+                online_state_store.save(online_state)
+                shadow_result["paper_promotion"] = paper_record.to_dict()
+
+        online_state.last_seen_bar_at = latest_bar_at
+        online_state.last_processed_bar_at = latest_bar_at
+        online_state.last_cycle_status = "processed"
+        online_state_store.save(online_state)
+
+        cycle_payload = {
+            "poll_iteration": poll_iteration,
+            "iteration": iteration,
+            "active_paper_model_id": active_paper_model_id,
+            "execution_record": execution_record,
+            "snapshot_record": snapshot_record,
+            "supervise_result": supervise_result.to_dict(),
+            "online_state": online_state.to_dict(),
+            "shadow_result": shadow_result,
+        }
+        if keep_cycle_results:
+            cycle_results.append(cycle_payload)
+
+        report = supervise_result.report_record.get("report", {})
+        print(
+            (
+                f"[online-train] poll={poll_iteration} processed={iteration} "
+                f"status=processed model={active_paper_model_id} symbol={pipeline.symbol} "
+                f"bar_at={latest_bar_at} action={report.get('action', 'unknown')}"
+            ),
+            flush=True,
+        )
+
+        if args.stop_on_pause and report.get("action") == "pause":
+            print_json(
+                {
+                    "project": config.project_name,
+                    "stopped": True,
+                    "reason": "supervisor_pause",
+                    "last_cycle": cycle_payload,
+                }
+            )
+            return 0
+
+        if args.iterations > 0 and iteration >= args.iterations:
+            break
+
+        time.sleep(args.sleep_seconds)
+
+    print_json(
+        {
+            "project": config.project_name,
+            "mode": RunMode.PAPER.value,
+            "iterations": iteration,
+            "poll_iterations": poll_iteration,
+            "results": cycle_results if keep_cycle_results else [],
+            "last_cycle": cycle_payload if not keep_cycle_results else None,
         }
     )
     return 0

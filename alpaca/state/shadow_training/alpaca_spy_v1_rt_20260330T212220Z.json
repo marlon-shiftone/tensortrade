@@ -1,0 +1,596 @@
+{
+  "cash_usd": 9000.0,
+  "equity_curve": [
+    {
+      "at": "2026-03-30T21:22:59.439815+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:26:15.793732+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:27:20.653379+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:28:25.516136+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:29:30.315161+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:30:35.137714+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:31:40.011659+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:32:44.837113+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:33:49.785936+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:34:54.591400+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:35:59.468774+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:37:04.312177+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:38:09.130278+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:39:13.976749+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:40:18.685178+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:41:23.575373+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:42:28.415072+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:43:33.298324+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:44:38.208942+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:45:43.274634+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:46:48.828194+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:47:53.810385+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:48:58.535123+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:50:03.252888+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:51:08.110651+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:52:12.958418+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:53:17.912321+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:54:22.744483+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:55:27.495498+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:56:32.558055+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:57:37.451311+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:58:42.280835+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T21:59:47.298475+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:00:52.315963+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:01:57.319509+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:03:02.195517+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:04:07.235216+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:05:12.184375+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:06:17.217298+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:07:22.099835+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:08:26.955784+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:09:32.067477+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:10:36.967989+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:11:42.102862+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:12:47.087735+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:13:52.149251+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:14:57.047248+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:16:02.079571+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:17:06.956647+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:18:11.864309+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:19:16.601070+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:20:21.464122+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:21:26.355464+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:22:31.307294+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:23:36.344710+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:24:41.283446+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:25:46.160947+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:26:51.475572+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:27:56.352774+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:29:01.230007+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:30:06.107021+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:31:11.030731+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:32:15.909073+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:33:20.857682+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:34:26.021450+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:35:31.194575+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:36:36.119656+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:37:41.013174+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:38:45.906759+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:39:50.900412+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:40:55.785068+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:42:00.662211+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:43:05.476905+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:44:10.353794+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:45:15.284031+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:46:20.264699+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:47:25.188465+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:48:29.971524+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:49:34.958129+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:50:39.858339+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:51:44.774958+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:52:49.668615+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:53:54.591979+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:54:59.589754+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:56:04.533563+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:57:09.614241+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:58:14.960291+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T22:59:19.846219+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T23:00:24.683360+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T23:01:29.575107+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T23:02:34.468571+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T23:03:39.330571+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-03-30T23:04:19.254221+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:30:40.062299+00:00",
+      "equity": 10030.25697146563,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:31:41.559671+00:00",
+      "equity": 10029.709792477302,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:32:43.002004+00:00",
+      "equity": 10030.25697146563,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:33:44.582853+00:00",
+      "equity": 10029.345006485084,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:34:46.091518+00:00",
+      "equity": 10028.047989623865,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:35:47.642457+00:00",
+      "equity": 10027.277885862517,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:36:49.127513+00:00",
+      "equity": 10027.298151750972,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:37:50.665434+00:00",
+      "equity": 10027.440012970168,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:38:52.265167+00:00",
+      "equity": 10027.31841763943,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:39:53.772915+00:00",
+      "equity": 10028.25064850843,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:40:55.470205+00:00",
+      "equity": 10029.66926070039,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:41:57.003734+00:00",
+      "equity": 10028.818093385215,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:42:58.538179+00:00",
+      "equity": 10029.871919584955,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:44:00.082834+00:00",
+      "equity": 10030.885214007782,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:45:01.696051+00:00",
+      "equity": 10030.19617380026,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:46:03.471240+00:00",
+      "equity": 10030.277237354087,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:47:05.132514+00:00",
+      "equity": 10029.507133592737,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:48:06.797223+00:00",
+      "equity": 10029.912451361868,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:49:08.382575+00:00",
+      "equity": 10029.48686770428,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T14:50:05.649479+00:00",
+      "equity": 10030.520428015565,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-01T15:07:42.605260+00:00",
+      "equity": 10029.770590142673,
+      "source": "shadow_challenger"
+    }
+  ],
+  "initial_cash_usd": 10000.0,
+  "positions": {
+    "AAPL": {
+      "cost_basis_usd": 1000.0,
+      "last_price": 254.065,
+      "opened_at": "2026-03-30T21:22:59.432819+00:00",
+      "qty": 4.053177691309987
+    }
+  },
+  "realized_pnl": 0.0,
+  "trade_history": [
+    {
+      "at": "2026-03-30T21:22:59.432819+00:00",
+      "notional": 1000.0,
+      "price": 246.72,
+      "qty": 4.053177691309987,
+      "realized_pnl": 0.0,
+      "side": "buy",
+      "symbol": "AAPL"
+    }
+  ]
+}

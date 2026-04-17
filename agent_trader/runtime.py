@@ -142,7 +142,16 @@ class TradingRuntime:
                 "intent": intent.to_dict(),
             }
 
-        reference = self.broker.submit(intent, mode)
+        try:
+            reference = self.broker.submit(intent, mode)
+        except Exception as exc:
+            return {
+                "submitted": False,
+                "reason": "erro ao enviar ordem para o broker",
+                "error_type": exc.__class__.__name__,
+                "error": str(exc),
+                "intent": intent.to_dict(),
+            }
         return {
             "submitted": True,
             "reference": reference,

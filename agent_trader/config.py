@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from .env import load_default_env_files
 from .metrics import HealthThresholds
 
 
@@ -36,6 +37,8 @@ class AppConfig:
         if self.project_dir is None:
             project_dir_env = os.getenv("AGENT_TRADER_PROJECT_DIR")
             self.project_dir = Path(project_dir_env) if project_dir_env else self.root_dir / self.project_name
+
+        load_default_env_files(self.root_dir, self.project_dir)
 
         if self.state_dir is None:
             self.state_dir = self.project_dir / "state"
