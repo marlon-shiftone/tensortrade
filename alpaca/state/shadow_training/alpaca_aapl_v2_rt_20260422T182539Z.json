@@ -1,0 +1,59 @@
+{
+  "cash_usd": 10000.0,
+  "equity_curve": [
+    {
+      "at": "2026-04-22T18:27:34.429085+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:28:41.949698+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:29:50.106989+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:30:57.979674+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:32:05.528287+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:33:12.647013+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:34:21.174313+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:35:28.794954+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:36:36.443210+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-22T18:37:44.508989+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    }
+  ],
+  "initial_cash_usd": 10000.0,
+  "positions": {},
+  "realized_pnl": 0.0,
+  "trade_history": []
+}

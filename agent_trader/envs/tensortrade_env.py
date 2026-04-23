@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -11,6 +12,18 @@ from tensortrade.oms.services.execution.simulated import execute_order
 from tensortrade.oms.wallets import Portfolio, Wallet
 
 
+class _SuppressTensorTradeCommissionPrecisionWarning(logging.Filter):
+    _MESSAGE_FRAGMENT = "Commission is > 0 but less than instrument precision."
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return self._MESSAGE_FRAGMENT not in record.getMessage()
+
+
+_ROOT_LOGGER = logging.getLogger()
+if not any(isinstance(existing, _SuppressTensorTradeCommissionPrecisionWarning) for existing in _ROOT_LOGGER.filters):
+    _ROOT_LOGGER.addFilter(_SuppressTensorTradeCommissionPrecisionWarning())
+
+
 @dataclass
 class TensorTradeEnvConfig:
     symbol: str
@@ -19,10 +32,30 @@ class TensorTradeEnvConfig:
     commission: float = 0.001
     action_scheme: str = "bsh"
     trade_sizes: list[float] = field(default_factory=lambda: [1.0])
+    flat_position_penalty: float = 0.0001
 
 
 def create_asset(symbol: str) -> Instrument:
     return Instrument(symbol, 6, f"{symbol} asset")
+
+
+class PositionAwareProfit(default.rewards.SimpleProfit):
+    """Simple profit with a small penalty for staying flat forever."""
+
+    def __init__(self, window_size: int = 5, flat_position_penalty: float = 0.0001):
+        super().__init__(window_size=window_size)
+        self._flat_position_penalty = float(flat_position_penalty)
+
+    def get_reward(self, portfolio) -> float:
+        reward = float(super().get_reward(portfolio))
+        non_base_balance = 0.0
+        for wallet in portfolio.wallets:
+            if wallet.instrument == portfolio.base_instrument:
+                continue
+            non_base_balance += abs(wallet.total_balance.as_float())
+        if non_base_balance <= 1e-8:
+            reward -= self._flat_position_penalty
+        return reward
 
 
 def build_tensortrade_env(feature_df: pd.DataFrame, config: TensorTradeEnvConfig):
@@ -64,7 +97,10 @@ def build_tensortrade_env(feature_df: pd.DataFrame, config: TensorTradeEnvConfig
         )
     else:
         raise ValueError(f"action_scheme invalido: {config.action_scheme}")
-    reward_scheme = default.rewards.SimpleProfit(window_size=5)
+    reward_scheme = PositionAwareProfit(
+        window_size=5,
+        flat_position_penalty=config.flat_position_penalty,
+    )
     return default.create(
         portfolio=portfolio,
         action_scheme=action_scheme,

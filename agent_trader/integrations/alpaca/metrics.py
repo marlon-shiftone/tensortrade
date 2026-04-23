@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -9,6 +10,7 @@ import pandas as pd
 
 from ...domain import ModelRecord, PerformanceSnapshot, RunMode
 from ...features import engineer_features
+from ...storage import JsonlStore
 from .market_data import AlpacaHistoricalDataClient
 
 
@@ -18,6 +20,8 @@ class AlpacaMetricsConfig:
     history_timeframe: str = "1D"
     orders_limit: int = 500
     after_days: int = 30
+    execution_history_path: str | None = None
+    decision_lookback_limit: int = 500
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -150,25 +154,150 @@ class AlpacaMetricsCollector:
         self.market_data_client = market_data_client
         self.config = config or AlpacaMetricsConfig()
 
-    def _portfolio_history(self):
+    def _execution_decision_stats(self, model: ModelRecord, mode: RunMode) -> dict[str, Any]:
+        path = getattr(self.config, "execution_history_path", None)
+        if not path:
+            return {
+                "decision_records": 0,
+                "submitted_decisions": 0,
+                "buy_decisions": 0,
+                "sell_decisions": 0,
+                "hold_decisions": 0,
+                "noop_decisions": 0,
+                "flat_sell_noops": 0,
+                "max_consecutive_flat_sell_noops": 0,
+                "latest_decision_at": None,
+            }
+
+        store_path = Path(path)
+        if not store_path.exists():
+            return {
+                "decision_records": 0,
+                "submitted_decisions": 0,
+                "buy_decisions": 0,
+                "sell_decisions": 0,
+                "hold_decisions": 0,
+                "noop_decisions": 0,
+                "flat_sell_noops": 0,
+                "max_consecutive_flat_sell_noops": 0,
+                "latest_decision_at": None,
+            }
+
+        window_start = self._model_window_start(model)
+        records = JsonlStore(store_path).read_all()
+        filtered_records = []
+        for record in records:
+            if record.get("model_id") != model.model_id or record.get("mode") != mode.value:
+                continue
+            payload = record.get("payload", {})
+            if "result" not in payload:
+                continue
+            try:
+                recorded_at = datetime.fromisoformat(record.get("recorded_at"))
+            except (TypeError, ValueError):
+                continue
+            if recorded_at.tzinfo is None:
+                recorded_at = recorded_at.replace(tzinfo=timezone.utc)
+            recorded_at = recorded_at.astimezone(timezone.utc)
+            if recorded_at < window_start:
+                continue
+            filtered_records.append((recorded_at, record))
+
+        filtered_records.sort(key=lambda item: item[0])
+        limit = max(1, int(getattr(self.config, "decision_lookback_limit", 500)))
+        filtered_records = filtered_records[-limit:]
+
+        stats = {
+            "decision_records": 0,
+            "submitted_decisions": 0,
+            "buy_decisions": 0,
+            "sell_decisions": 0,
+            "hold_decisions": 0,
+            "noop_decisions": 0,
+            "flat_sell_noops": 0,
+            "max_consecutive_flat_sell_noops": 0,
+            "max_consecutive_holds": 0,
+            "latest_decision_at": None,
+        }
+        consecutive_flat_sell_noops = 0
+        consecutive_holds = 0
+
+        for recorded_at, record in filtered_records:
+            result = record.get("payload", {}).get("result", {})
+            intent = result.get("intent", {})
+            side = str(intent.get("side", "hold")).lower()
+            reference = str(result.get("reference", "") or result.get("reason", "")).lower()
+
+            stats["decision_records"] += 1
+            if result.get("submitted"):
+                stats["submitted_decisions"] += 1
+            if side == "buy":
+                stats["buy_decisions"] += 1
+            elif side == "sell":
+                stats["sell_decisions"] += 1
+                consecutive_holds = 0
+            else:
+                stats["hold_decisions"] += 1
+                consecutive_holds += 1
+                stats["max_consecutive_holds"] = max(
+                    stats["max_consecutive_holds"],
+                    consecutive_holds,
+                )
+
+            if "noop" in reference:
+                stats["noop_decisions"] += 1
+
+            if side == "sell" and "noop-no-position" in reference:
+                stats["flat_sell_noops"] += 1
+                consecutive_flat_sell_noops += 1
+                stats["max_consecutive_flat_sell_noops"] = max(
+                    stats["max_consecutive_flat_sell_noops"],
+                    consecutive_flat_sell_noops,
+                )
+            else:
+                consecutive_flat_sell_noops = 0
+                if side != "hold":
+                    consecutive_holds = 0
+
+            stats["latest_decision_at"] = recorded_at.isoformat()
+
+        return stats
+
+    def _model_window_start(self, model: ModelRecord) -> datetime:
+        fallback_start = datetime.now(timezone.utc) - timedelta(days=self.config.after_days)
+        created_at = getattr(model, "created_at", None)
+        if not created_at:
+            return fallback_start
+        try:
+            created_at_dt = datetime.fromisoformat(created_at)
+        except ValueError:
+            return fallback_start
+        if created_at_dt.tzinfo is None:
+            created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
+        return max(fallback_start, created_at_dt.astimezone(timezone.utc))
+
+    def _portfolio_history(self, model: ModelRecord):
         from alpaca.trading.requests import GetPortfolioHistoryRequest
 
+        window_start = self._model_window_start(model)
         request = GetPortfolioHistoryRequest(
-            period=self.config.history_period,
             timeframe=self.config.history_timeframe,
+            start=window_start,
+            end=datetime.now(timezone.utc),
             extended_hours=False,
         )
         return self.trading_client.get_portfolio_history(request)
 
-    def _closed_orders(self, symbol: str) -> list[Any]:
+    def _closed_orders(self, symbol: str, model: ModelRecord) -> list[Any]:
         from alpaca.common.enums import Sort
         from alpaca.trading.enums import QueryOrderStatus
         from alpaca.trading.requests import GetOrdersRequest
 
+        window_start = self._model_window_start(model)
         request = GetOrdersRequest(
             status=QueryOrderStatus.CLOSED,
             limit=self.config.orders_limit,
-            after=datetime.now(timezone.utc) - timedelta(days=self.config.after_days),
+            after=window_start,
             direction=Sort.ASC,
             nested=False,
             symbols=[symbol],
@@ -189,7 +318,7 @@ class AlpacaMetricsCollector:
         timeframe_unit: str,
         lookback_bars: int,
     ) -> PerformanceSnapshot:
-        portfolio_history = self._portfolio_history()
+        portfolio_history = self._portfolio_history(model)
         timestamps = np.array(getattr(portfolio_history, "timestamp", []) or [])
         equity_values = np.array(getattr(portfolio_history, "equity", []) or [], dtype=float)
         profit_loss = np.array(getattr(portfolio_history, "profit_loss", []) or [], dtype=float)
@@ -204,8 +333,9 @@ class AlpacaMetricsCollector:
         rolling_sharpe = _compute_sharpe_from_equity_curve(equity_values, self.config.history_timeframe)
         max_drawdown = _compute_max_drawdown(equity_values)
 
-        orders = self._closed_orders(symbol)
+        orders = self._closed_orders(symbol, model)
         trades, hit_rate, turnover = _compute_trade_stats(orders)
+        execution_stats = self._execution_decision_stats(model=model, mode=RunMode.PAPER)
 
         bars = self.market_data_client.load_recent_bars(
             symbol=symbol,
@@ -232,10 +362,13 @@ class AlpacaMetricsCollector:
             paper_days=paper_days,
             trades=trades,
             metadata={
+                "model_created_at": model.created_at,
+                "metrics_window_start": self._model_window_start(model).isoformat(),
                 "history_period": self.config.history_period,
                 "history_timeframe": self.config.history_timeframe,
                 "equity_points": int(equity_values.size),
                 "orders_evaluated": len(orders),
                 "feature_rows": len(feature_df),
+                **execution_stats,
             },
         )

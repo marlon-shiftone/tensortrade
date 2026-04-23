@@ -26,12 +26,13 @@ class TensorTradePipelineConfig:
     window_size: int = 30
     cash: float = 10000.0
     commission: float = 0.001
-    train_episodes: int = 3
-    train_steps: int = 200
+    train_episodes: int = 12
+    train_steps: int = 1000
     order_notional_usd: float = 1000.0
     action_scheme: str = "bsh"
     trade_sizes: list[float] = field(default_factory=lambda: [1.0])
     model_path: str = "artifacts/alpaca_online_policy.keras"
+    flat_position_penalty: float = 0.0001
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +49,7 @@ class TensorTradePipelineConfig:
             "action_scheme": self.action_scheme,
             "trade_sizes": list(self.trade_sizes),
             "model_path": self.model_path,
+            "flat_position_penalty": self.flat_position_penalty,
         }
 
     @classmethod
@@ -60,12 +62,13 @@ class TensorTradePipelineConfig:
             window_size=data.get("window_size", 30),
             cash=data.get("cash", 10000.0),
             commission=data.get("commission", 0.001),
-            train_episodes=data.get("train_episodes", 3),
-            train_steps=data.get("train_steps", 200),
+            train_episodes=data.get("train_episodes", 12),
+            train_steps=data.get("train_steps", 1000),
             order_notional_usd=data.get("order_notional_usd", 1000.0),
             action_scheme=data.get("action_scheme", "bsh"),
             trade_sizes=[float(value) for value in data.get("trade_sizes", [1.0])],
             model_path=data.get("model_path", "artifacts/alpaca_online_policy.keras"),
+            flat_position_penalty=data.get("flat_position_penalty", 0.0001),
         )
 
     def env_config(self) -> TensorTradeEnvConfig:
@@ -76,6 +79,7 @@ class TensorTradePipelineConfig:
             commission=self.commission,
             action_scheme=self.action_scheme,
             trade_sizes=list(self.trade_sizes),
+            flat_position_penalty=self.flat_position_penalty,
         )
 
 
@@ -116,7 +120,8 @@ def build_policy_network(observation_shape, n_actions: int) -> tf.keras.Model:
     x = tf.keras.layers.GlobalAveragePooling1D()(x)
     x = tf.keras.layers.Dense(64, activation="relu")(x)
     x = tf.keras.layers.Dense(32, activation="relu")(x)
-    outputs = tf.keras.layers.Dense(n_actions, activation="softmax")(x)
+    # DQN needs unconstrained Q-values, not normalized class probabilities.
+    outputs = tf.keras.layers.Dense(n_actions, activation="linear")(x)
     return tf.keras.Model(inputs=inputs, outputs=outputs)
 
 
@@ -127,11 +132,97 @@ def infer_latest_action(model: tf.keras.Model, feature_df: pd.DataFrame, config:
     action = 0
 
     while not done:
-        logits = model(np.expand_dims(state, 0))
-        action = int(np.argmax(logits))
+        action_scores = _flatten_action_scores(model(np.expand_dims(state, 0)))
+        action = int(np.argmax(action_scores))
         state, _reward, done, _info = legacy_env.step(action)
 
     return action
+
+
+def _flatten_action_scores(model_output: Any) -> np.ndarray:
+    action_scores = np.asarray(model_output, dtype=float)
+    if action_scores.ndim > 1:
+        action_scores = action_scores[0]
+    return action_scores.astype(float)
+
+
+def _select_valid_action(
+    *,
+    action_scores: np.ndarray,
+    action_scheme: str,
+    action_scheme_instance: Any,
+    latest_close: float,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[int, int, str | None]:
+    raw_action = int(np.argmax(action_scores))
+    valid_actions = set(range(len(action_scores)))
+    valid_buy_actions: list[int] = []
+    valid_sell_actions: list[int] = []
+
+    position_qty = None
+    available_cash = None
+    if context is not None:
+        try:
+            position_qty = float(context.get("position_qty")) if context.get("position_qty") is not None else None
+        except (TypeError, ValueError):
+            position_qty = None
+        try:
+            available_cash = float(context.get("available_cash")) if context.get("available_cash") is not None else None
+        except (TypeError, ValueError):
+            available_cash = None
+
+    if action_scheme == "simple_orders":
+        action_payload = getattr(action_scheme_instance, "actions", None) or []
+        valid_actions = {0}
+        for index, payload in enumerate(action_payload):
+            if index == 0 or payload is None:
+                continue
+            _exchange_pair, (_criteria, proportion, _duration, trade_side) = payload
+            side_name = getattr(trade_side, "name", str(trade_side)).lower()
+            if side_name == "buy":
+                spend_capacity = available_cash
+                if spend_capacity is None:
+                    valid_actions.add(index)
+                    continue
+                spend = spend_capacity * max(float(proportion), 0.0)
+                if spend > 0 and spend >= min(1.0, latest_close):
+                    valid_actions.add(index)
+                    valid_buy_actions.append(index)
+            elif side_name == "sell":
+                if position_qty is None:
+                    valid_actions.add(index)
+                    valid_sell_actions.append(index)
+                    continue
+                if position_qty > 0:
+                    valid_actions.add(index)
+                    valid_sell_actions.append(index)
+    elif action_scheme == "bsh":
+        valid_actions = {0}
+        if available_cash is None or available_cash > 0:
+            valid_actions.add(1)
+            valid_buy_actions.append(1)
+        if position_qty is None or position_qty > 0:
+            valid_actions.add(2)
+            valid_sell_actions.append(2)
+
+    if raw_action in valid_actions:
+        return raw_action, raw_action, None
+
+    is_flat = position_qty is not None and position_qty <= 0
+    has_cash = available_cash is None or available_cash > min(1.0, latest_close)
+    if is_flat and has_cash and valid_buy_actions:
+        preferred_buy = max(valid_buy_actions, key=lambda index: float(action_scores[index]))
+        return preferred_buy, raw_action, (
+            f"masked_invalid_action raw_action={raw_action} prefer_valid_buy"
+        )
+
+    ranked_actions = np.argsort(action_scores)[::-1]
+    for candidate in ranked_actions:
+        candidate_index = int(candidate)
+        if candidate_index in valid_actions:
+            return candidate_index, raw_action, f"masked_invalid_action raw_action={raw_action}"
+
+    return 0, raw_action, f"masked_invalid_action raw_action={raw_action} fallback_hold"
 
 
 def build_feature_reference(feature_df: pd.DataFrame) -> dict[str, Any]:
@@ -232,6 +323,7 @@ class TensorTradeModelExecutor:
         self,
         features: Mapping[str, Any],
         model: ModelRecord,
+        context: Mapping[str, Any] | None = None,
     ) -> OrderIntent:
         model_path = Path(model.artifact_path)
         if not model_path.exists():
@@ -252,15 +344,23 @@ class TensorTradeModelExecutor:
         state = legacy_env.reset()
         done = False
         action = 0
+        raw_action = 0
+        action_mask_reason = None
         while not done:
-            logits = keras_model(np.expand_dims(state, 0))
-            action = int(np.argmax(logits))
+            action_scores = _flatten_action_scores(keras_model(np.expand_dims(state, 0)))
+            action, raw_action, action_mask_reason = _select_valid_action(
+                action_scores=action_scores,
+                action_scheme=self.config.action_scheme,
+                action_scheme_instance=getattr(env, "action_scheme", None),
+                latest_close=float(self.feature_df["close"].iloc[-1]),
+                context=context,
+            )
             state, _reward, done, _info = legacy_env.step(action)
 
         latest_close = float(self.feature_df["close"].iloc[-1])
         latest_features = self.feature_df.iloc[-1].to_dict()
         latest_features["close"] = latest_close
-        return _build_order_intent_from_action(
+        intent = _build_order_intent_from_action(
             action=action,
             action_scheme=self.config.action_scheme,
             action_scheme_instance=getattr(env, "action_scheme", None),
@@ -270,6 +370,28 @@ class TensorTradeModelExecutor:
             latest_features=latest_features,
             default_notional_usd=self.config.order_notional_usd,
         )
+        if action_mask_reason:
+            intent.reason = f"{intent.reason} {action_mask_reason}"
+        if raw_action != action:
+            intent.reason = f"{intent.reason} selected_action={action}"
+        position_qty = None
+        if context is not None:
+            try:
+                position_qty = float(context.get("position_qty")) if context.get("position_qty") is not None else None
+            except (TypeError, ValueError):
+                position_qty = None
+        if intent.side is OrderSide.SELL and position_qty is not None and position_qty <= 0:
+            return OrderIntent(
+                model_id=model.model_id,
+                symbol=self.config.symbol,
+                side=OrderSide.HOLD,
+                confidence=intent.confidence,
+                reason=(
+                    f"{intent.reason} blocked_no_position actual_position_qty={position_qty:.6f}"
+                ),
+                reference_price=latest_close,
+            )
+        return intent
 
 
 def _build_order_intent_from_action(

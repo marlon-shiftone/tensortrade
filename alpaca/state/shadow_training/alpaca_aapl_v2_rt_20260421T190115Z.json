@@ -1,0 +1,76 @@
+{
+  "cash_usd": 0.0,
+  "equity_curve": [
+    {
+      "at": "2026-04-21T19:03:05.557834+00:00",
+      "equity": 10000.0,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:04:13.608680+00:00",
+      "equity": 10002.986746313236,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:05:22.893810+00:00",
+      "equity": 10002.426731379504,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:06:33.024136+00:00",
+      "equity": 10002.986746313236,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:07:40.775128+00:00",
+      "equity": 10002.240059734928,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:08:49.121777+00:00",
+      "equity": 10004.853462759007,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:09:57.919262+00:00",
+      "equity": 10010.453612096322,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:11:05.952996+00:00",
+      "equity": 10010.266940451746,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:12:14.917941+00:00",
+      "equity": 10008.58689565055,
+      "source": "shadow_challenger"
+    },
+    {
+      "at": "2026-04-21T19:13:23.275672+00:00",
+      "equity": 10008.58689565055,
+      "source": "shadow_challenger"
+    }
+  ],
+  "initial_cash_usd": 10000.0,
+  "positions": {
+    "AAPL": {
+      "cost_basis_usd": 10000.0,
+      "last_price": 268.08,
+      "opened_at": "2026-04-21T19:03:05.551834+00:00",
+      "qty": 37.334328915437744
+    }
+  },
+  "realized_pnl": 0.0,
+  "trade_history": [
+    {
+      "at": "2026-04-21T19:03:05.551834+00:00",
+      "notional": 10000.0,
+      "price": 267.85,
+      "qty": 37.334328915437744,
+      "realized_pnl": 0.0,
+      "side": "buy",
+      "symbol": "AAPL"
+    }
+  ]
+}

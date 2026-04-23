@@ -16,6 +16,12 @@ class HealthThresholds:
     min_paper_days_for_live: int = 10
     min_paper_trades_for_live: int = 50
     max_turnover: float = 10.0
+    min_trades_for_health_eval: int = 1
+    min_decisions_for_noop_eval: int = 10
+    max_flat_sell_noop_ratio: float = 0.6
+    max_consecutive_flat_sell_noops: int = 8
+    max_hold_ratio_without_entries: float = 0.9
+    max_consecutive_holds: int = 10
 
     def to_dict(self) -> dict[str, float | int]:
         return {
@@ -28,6 +34,12 @@ class HealthThresholds:
             "min_paper_days_for_live": self.min_paper_days_for_live,
             "min_paper_trades_for_live": self.min_paper_trades_for_live,
             "max_turnover": self.max_turnover,
+            "min_trades_for_health_eval": self.min_trades_for_health_eval,
+            "min_decisions_for_noop_eval": self.min_decisions_for_noop_eval,
+            "max_flat_sell_noop_ratio": self.max_flat_sell_noop_ratio,
+            "max_consecutive_flat_sell_noops": self.max_consecutive_flat_sell_noops,
+            "max_hold_ratio_without_entries": self.max_hold_ratio_without_entries,
+            "max_consecutive_holds": self.max_consecutive_holds,
         }
 
 
@@ -60,7 +72,9 @@ def evaluate_snapshot(
     requires_retraining = False
     pause_trading = False
 
-    if snapshot.rolling_sharpe < thresholds.min_paper_sharpe:
+    should_evaluate_return_quality = snapshot.trades >= thresholds.min_trades_for_health_eval
+
+    if should_evaluate_return_quality and snapshot.rolling_sharpe < thresholds.min_paper_sharpe:
         requires_retraining = True
         reasons.append(
             f"rolling_sharpe={snapshot.rolling_sharpe:.3f} abaixo do minimo de papel "
@@ -87,7 +101,48 @@ def evaluate_snapshot(
             f"{thresholds.max_feature_drift:.3f}"
         )
 
-    if snapshot.turnover > thresholds.max_turnover:
+    decision_records = int(snapshot.metadata.get("decision_records", 0) or 0)
+    flat_sell_noops = int(snapshot.metadata.get("flat_sell_noops", 0) or 0)
+    max_consecutive_flat_sell_noops = int(
+        snapshot.metadata.get("max_consecutive_flat_sell_noops", 0) or 0
+    )
+    hold_decisions = int(snapshot.metadata.get("hold_decisions", 0) or 0)
+    buy_decisions = int(snapshot.metadata.get("buy_decisions", 0) or 0)
+    submitted_decisions = int(snapshot.metadata.get("submitted_decisions", 0) or 0)
+    max_consecutive_holds = int(snapshot.metadata.get("max_consecutive_holds", 0) or 0)
+    if decision_records >= thresholds.min_decisions_for_noop_eval:
+        flat_sell_noop_ratio = flat_sell_noops / max(decision_records, 1)
+        if flat_sell_noop_ratio >= thresholds.max_flat_sell_noop_ratio:
+            requires_retraining = True
+            reasons.append(
+                "modelo colapsou em vendas sem posicao: "
+                f"flat_sell_noops={flat_sell_noops}/{decision_records}"
+            )
+        if max_consecutive_flat_sell_noops >= thresholds.max_consecutive_flat_sell_noops:
+            requires_retraining = True
+            reasons.append(
+                "modelo acumulou no-ops consecutivos demais: "
+                f"max_consecutive_flat_sell_noops={max_consecutive_flat_sell_noops}"
+            )
+        hold_ratio = hold_decisions / max(decision_records, 1)
+        if (
+            hold_ratio >= thresholds.max_hold_ratio_without_entries
+            and buy_decisions == 0
+            and submitted_decisions == 0
+        ):
+            requires_retraining = True
+            reasons.append(
+                "modelo colapsou em inercia sem entradas: "
+                f"holds={hold_decisions}/{decision_records}"
+            )
+        if max_consecutive_holds >= thresholds.max_consecutive_holds and submitted_decisions == 0:
+            requires_retraining = True
+            reasons.append(
+                "modelo acumulou holds consecutivos demais: "
+                f"max_consecutive_holds={max_consecutive_holds}"
+            )
+
+    if should_evaluate_return_quality and snapshot.turnover > thresholds.max_turnover:
         reasons.append(
             f"turnover={snapshot.turnover:.3f} acima do teto {thresholds.max_turnover:.3f}"
         )

@@ -2,7 +2,19 @@
   "live": {},
   "paper": {
     "alpaca_aapl_v2": {
-      "consecutive_bad_windows": 2274
+      "consecutive_bad_windows": 3241
+    },
+    "alpaca_aapl_v2_rt_20260423T145318Z": {
+      "consecutive_bad_windows": 32
+    },
+    "alpaca_aapl_v2_rt_20260423T145318Z_rt_20260423T155713Z": {
+      "consecutive_bad_windows": 33
+    },
+    "alpaca_aapl_v2_rt_20260423T145318Z_rt_20260423T155713Z_rt_20260423T182149Z": {
+      "consecutive_bad_windows": 6
+    },
+    "alpaca_aapl_v2_rt_20260423T145318Z_rt_20260423T155713Z_rt_20260423T182149Z_rt_20260423T184336Z": {
+      "consecutive_bad_windows": 34
     },
     "alpaca_spy_v1": {
       "consecutive_bad_windows": 116

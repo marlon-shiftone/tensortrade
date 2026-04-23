@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -51,6 +52,7 @@ class AlpacaHistoricalDataClient:
         lookback_bars: int,
     ) -> pd.DataFrame:
         from requests.exceptions import RequestException
+        from alpaca.common.enums import Sort
         from alpaca.data.requests import StockBarsRequest
         from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
@@ -64,12 +66,26 @@ class AlpacaHistoricalDataClient:
         if unit_normalized not in mapping:
             raise ValueError(f"timeframe_unit invalido: {timeframe_unit}")
 
+        end = datetime.now(timezone.utc)
+        if unit_normalized in {"minute", "min"}:
+            trading_days = max(1, int((lookback_bars / max(1, timeframe_amount)) / 390) + 1)
+            calendar_days = max(7, trading_days * 7)
+        elif unit_normalized == "hour":
+            trading_days = max(1, int((lookback_bars / max(1, timeframe_amount)) / 7) + 1)
+            calendar_days = max(10, trading_days * 7)
+        else:
+            calendar_days = max(lookback_bars * 3, 30)
+        start = end - timedelta(days=calendar_days)
+
         request = StockBarsRequest(
             symbol_or_symbols=symbol,
             timeframe=TimeFrame(timeframe_amount, mapping[unit_normalized]),
+            start=start,
+            end=end,
             limit=lookback_bars,
             adjustment="raw",
             feed=self.config.feed,
+            sort=Sort.DESC,
         )
         attempts = max(1, int(self.config.request_retries))
         bars = None

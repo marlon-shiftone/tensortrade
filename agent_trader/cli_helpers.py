@@ -83,8 +83,8 @@ def pipeline_config_from_args(
         "window_size": args.window_size if args.window_size is not None else base_data.get("window_size", 30),
         "cash": args.cash if args.cash is not None else base_data.get("cash", 10000.0),
         "commission": args.commission if args.commission is not None else base_data.get("commission", 0.001),
-        "train_episodes": args.train_episodes if args.train_episodes is not None else base_data.get("train_episodes", 3),
-        "train_steps": args.train_steps if args.train_steps is not None else base_data.get("train_steps", 200),
+        "train_episodes": args.train_episodes if args.train_episodes is not None else base_data.get("train_episodes", 12),
+        "train_steps": args.train_steps if args.train_steps is not None else base_data.get("train_steps", 1000),
         "order_notional_usd": (
             args.order_notional_usd if args.order_notional_usd is not None else base_data.get("order_notional_usd", 1000.0)
         ),
@@ -95,5 +95,6 @@ def pipeline_config_from_args(
             artifacts_dir=artifacts_dir,
             model_id=model_id,
         ),
+        "flat_position_penalty": base_data.get("flat_position_penalty", 0.0001),
     }
     return TensorTradePipelineConfig.from_dict(config_data)

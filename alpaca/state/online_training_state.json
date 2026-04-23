@@ -1,9 +1,11 @@
 {
-  "challenger_created_at": "2026-04-01T15:14:14.242349+00:00",
-  "challenger_model_id": "alpaca_aapl_v2_rt_20260401T151401Z",
-  "champion_model_id": "alpaca_aapl_v2",
-  "evaluation_iterations": 2272,
-  "last_cycle_status": "processed",
-  "last_processed_bar_at": "2026-04-17T19:35:00+00:00",
-  "last_seen_bar_at": "2026-04-17T19:35:00+00:00"
+  "challenger_created_at": "2026-04-23T20:03:04.695326+00:00",
+  "challenger_model_id": "alpaca_aapl_v2_rt_20260423T145318Z_rt_20260423T155713Z_rt_20260423T182149Z_rt_20260423T184336Z_rt_20260423T195621Z",
+  "champion_model_id": "alpaca_aapl_v2_rt_20260423T145318Z_rt_20260423T155713Z_rt_20260423T182149Z_rt_20260423T184336Z",
+  "evaluation_iterations": 1,
+  "last_challenger_retired_at": "2026-04-23T20:03:04.695326+00:00",
+  "last_challenger_retired_reason": "substituido alpaca_aapl_v2_rt_20260423T145318Z_rt_20260423T155713Z_rt_20260423T182149Z_rt_20260423T184336Z_rt_20260423T193802Z: challenger requer retreinamento e nao atingiu minimo de trades para promocao",
+  "last_cycle_status": "waiting_new_bar",
+  "last_processed_bar_at": "2026-04-23T19:59:00+00:00",
+  "last_seen_bar_at": "2026-04-23T19:59:00+00:00"
 }

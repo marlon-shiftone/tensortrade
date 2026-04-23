@@ -12,6 +12,7 @@ class ModelExecutor(Protocol):
         self,
         features: Mapping[str, Any],
         model: ModelRecord,
+        context: Mapping[str, Any] | None = None,
     ) -> OrderIntent:
         ...
 
@@ -43,6 +44,7 @@ class StaticSignalModelExecutor:
         self,
         features: Mapping[str, Any],
         model: ModelRecord,
+        context: Mapping[str, Any] | None = None,
     ) -> OrderIntent:
         return OrderIntent(
             model_id=model.model_id,
@@ -126,12 +128,25 @@ class TradingRuntime:
     ) -> dict[str, Any]:
         model = self.registry.get_model(model_id)
         self._ensure_mode_allowed(model, mode)
-        intent = self.model_executor.predict_order(features, model)
+        intent = self.model_executor.predict_order(features, model, context=context)
 
         if intent.side == OrderSide.HOLD:
+            hold_reason = intent.reason or "modelo optou por hold"
             return {
                 "submitted": False,
-                "reason": "modelo optou por hold",
+                "reason": hold_reason,
+                "intent": intent.to_dict(),
+            }
+
+        position_qty = context.get("position_qty") if context else None
+        try:
+            position_qty_value = float(position_qty) if position_qty is not None else None
+        except (TypeError, ValueError):
+            position_qty_value = None
+        if intent.side == OrderSide.SELL and position_qty_value is not None and position_qty_value <= 0:
+            return {
+                "submitted": False,
+                "reason": "sell bloqueado antes do broker: sem posicao aberta",
                 "intent": intent.to_dict(),
             }
 
@@ -152,8 +167,18 @@ class TradingRuntime:
                 "error": str(exc),
                 "intent": intent.to_dict(),
             }
+
+        reference_text = str(reference)
+        if "noop" in reference_text or "dry-run" in reference_text:
+            return {
+                "submitted": False,
+                "reference": reference_text,
+                "reason": reference_text,
+                "intent": intent.to_dict(),
+            }
+
         return {
             "submitted": True,
-            "reference": reference,
+            "reference": reference_text,
             "intent": intent.to_dict(),
         }

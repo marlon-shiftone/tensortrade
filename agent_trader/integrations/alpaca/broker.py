@@ -45,6 +45,12 @@ class AlpacaTradingBroker:
     def client_for_mode(self, mode: RunMode):
         return self._client_for_mode(mode)
 
+    def current_position_qty(self, mode: RunMode, symbol: str) -> float:
+        return self._floor_qty(abs(self._current_position_qty(mode, symbol)), precision=6)
+
+    def available_cash(self, mode: RunMode) -> float:
+        return max(self._available_cash(mode), 0.0)
+
     def _current_position_qty(self, mode: RunMode, symbol: str) -> float:
         client = self._client_for_mode(mode)
         try:

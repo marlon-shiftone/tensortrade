@@ -1,0 +1,29 @@
+{
+  "cash_usd": 10000.0,
+  "equity_curve": [
+    {
+      "at": "2026-04-23T18:50:15.681667+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T18:51:24.536541+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T18:52:32.257120+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T18:53:39.999510+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    }
+  ],
+  "initial_cash_usd": 10000.0,
+  "positions": {},
+  "realized_pnl": 0.0,
+  "trade_history": []
+}

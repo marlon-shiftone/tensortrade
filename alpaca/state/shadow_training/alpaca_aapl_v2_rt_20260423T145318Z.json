@@ -1,0 +1,59 @@
+{
+  "cash_usd": 10000.0,
+  "equity_curve": [
+    {
+      "at": "2026-04-23T17:09:47.176616+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:10:54.491228+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:12:01.832348+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:13:09.320361+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:14:16.790377+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:15:24.617011+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:16:32.377386+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:17:40.125241+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:18:47.750575+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    },
+    {
+      "at": "2026-04-23T17:19:55.037519+00:00",
+      "equity": 10000.0,
+      "source": "shadow_champion"
+    }
+  ],
+  "initial_cash_usd": 10000.0,
+  "positions": {},
+  "realized_pnl": 0.0,
+  "trade_history": []
+}

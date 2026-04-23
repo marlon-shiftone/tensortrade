@@ -108,6 +108,9 @@ class ChallengerPromotionPolicy:
     evaluation_iterations: int = 10
     evaluation_min_trades: int = 2
     challenger_wins_required: int = 3
+    max_evaluation_iterations: int = 120
+    max_zero_trade_iterations: int = 30
+    allow_rebase_promotion: bool = True
 
 
 @dataclass
@@ -119,6 +122,8 @@ class OnlineTrainingState:
     last_seen_bar_at: str | None = None
     last_processed_bar_at: str | None = None
     last_cycle_status: str | None = None
+    last_challenger_retired_at: str | None = None
+    last_challenger_retired_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -129,6 +134,8 @@ class OnlineTrainingState:
             "last_seen_bar_at": self.last_seen_bar_at,
             "last_processed_bar_at": self.last_processed_bar_at,
             "last_cycle_status": self.last_cycle_status,
+            "last_challenger_retired_at": self.last_challenger_retired_at,
+            "last_challenger_retired_reason": self.last_challenger_retired_reason,
         }
 
     @classmethod
@@ -141,6 +148,8 @@ class OnlineTrainingState:
             last_seen_bar_at=payload.get("last_seen_bar_at"),
             last_processed_bar_at=payload.get("last_processed_bar_at"),
             last_cycle_status=payload.get("last_cycle_status"),
+            last_challenger_retired_at=payload.get("last_challenger_retired_at"),
+            last_challenger_retired_reason=payload.get("last_challenger_retired_reason"),
         )
 
 
@@ -380,13 +389,77 @@ def evaluate_challenger_promotion(
         ]
     )
 
+    rebase_eligible = all(
+        [
+            policy.allow_rebase_promotion,
+            evaluation_iterations >= policy.evaluation_iterations,
+            champion_health.requires_retraining,
+            challenger_snapshot.trades == 0,
+            challenger_snapshot.feature_drift <= thresholds.max_feature_drift,
+            challenger_snapshot.max_drawdown <= thresholds.max_drawdown_retrain,
+            challenger_snapshot.turnover <= thresholds.max_turnover,
+        ]
+    )
+
+    activity_rebase_eligible = all(
+        [
+            policy.allow_rebase_promotion,
+            evaluation_iterations >= 1,
+            champion_health.requires_retraining,
+            champion_snapshot.turnover <= 0.0,
+            challenger_snapshot.turnover > 0.0,
+            challenger_snapshot.max_drawdown <= thresholds.max_drawdown_retrain,
+            challenger_snapshot.feature_drift <= max(
+                thresholds.max_feature_drift * 2.0,
+                champion_snapshot.feature_drift + 0.15,
+            ),
+        ]
+    )
+
+    replacement_reasons = []
+    if (
+        evaluation_iterations >= policy.max_zero_trade_iterations
+        and challenger_snapshot.trades == 0
+    ):
+        replacement_reasons.append(
+            (
+                "challenger sem trades apos "
+                f"{evaluation_iterations} iteracoes "
+                f"(limite={policy.max_zero_trade_iterations})"
+            )
+        )
+    if (
+        evaluation_iterations >= policy.evaluation_iterations
+        and challenger_health.requires_retraining
+        and challenger_snapshot.trades < policy.evaluation_min_trades
+    ):
+        replacement_reasons.append(
+            "challenger requer retreinamento e nao atingiu minimo de trades para promocao"
+        )
+    if evaluation_iterations >= policy.max_evaluation_iterations and not eligible:
+        replacement_reasons.append(
+            (
+                "challenger excedeu janela maxima de avaliacao "
+                f"({policy.max_evaluation_iterations}) sem promocao"
+            )
+        )
+
+    replacement_required = bool(replacement_reasons)
+
     return {
         "eligible": eligible,
+        "rebase_eligible": rebase_eligible,
+        "activity_rebase_eligible": activity_rebase_eligible,
+        "replacement_required": replacement_required,
+        "replacement_reasons": replacement_reasons,
         "evaluation_iterations": evaluation_iterations,
         "policy": {
             "evaluation_iterations": policy.evaluation_iterations,
             "evaluation_min_trades": policy.evaluation_min_trades,
             "challenger_wins_required": required_wins,
+            "max_evaluation_iterations": policy.max_evaluation_iterations,
+            "max_zero_trade_iterations": policy.max_zero_trade_iterations,
+            "allow_rebase_promotion": policy.allow_rebase_promotion,
         },
         "comparisons": comparisons,
         "challenger_wins": challenger_wins,

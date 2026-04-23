@@ -4,6 +4,7 @@ import argparse
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from ...cli_helpers import add_pipeline_args, pipeline_config_from_args, print_json
 from ...config import AppConfig
@@ -77,6 +78,9 @@ def _add_online_training_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--shadow-eval-iterations", type=int, default=10)
     parser.add_argument("--shadow-min-trades", type=int, default=2)
     parser.add_argument("--shadow-wins-required", type=int, default=3)
+    parser.add_argument("--shadow-max-eval-iterations", type=int, default=120)
+    parser.add_argument("--shadow-max-zero-trade-iterations", type=int, default=30)
+    parser.add_argument("--no-shadow-rebase-promotion", action="store_true")
     parser.add_argument("--shadow-cash", type=float, default=10000.0)
     parser.add_argument("--no-auto-promote-paper", action="store_true")
     parser.add_argument("--stop-on-pause", action="store_true")
@@ -273,18 +277,25 @@ def handle_run(args) -> int:
         lookback_bars=pipeline.lookback_bars,
     )
     feature_df = engineer_features(bars)
+    broker = AlpacaTradingBroker(AlpacaBrokerConfig.from_env(dry_run=args.dry_run))
     runtime = TradingRuntime(
         registry=registry,
         model_executor=TensorTradeModelExecutor(feature_df=feature_df, config=pipeline),
         risk_manager=AllowAllRiskManager(),
-        broker=AlpacaTradingBroker(AlpacaBrokerConfig.from_env(dry_run=args.dry_run)),
+        broker=broker,
     )
     runtime.start(args.model_id, mode)
+    position_qty = broker.current_position_qty(mode, pipeline.symbol)
+    available_cash = broker.available_cash(mode)
     result = runtime.run_once(
         model_id=args.model_id,
         mode=mode,
         features=feature_df.iloc[-1].to_dict(),
-        context={"latest_close": float(feature_df["close"].iloc[-1])},
+        context={
+            "latest_close": float(feature_df["close"].iloc[-1]),
+            "position_qty": position_qty,
+            "available_cash": available_cash,
+        },
     )
     payload = {
         "mode": mode.value,
@@ -306,7 +317,7 @@ def _resolved_pipeline_for_model(args, config: AppConfig, registry: ModelRegistr
     return _resolved_pipeline_for_model_id(args, config, registry, args.model_id)
 
 
-def _metrics_config_from_args(args):
+def _metrics_config_from_args(args, config: AppConfig):
     from ...integrations.alpaca import AlpacaMetricsConfig
 
     return AlpacaMetricsConfig(
@@ -314,6 +325,7 @@ def _metrics_config_from_args(args):
         history_timeframe=args.history_timeframe,
         orders_limit=args.orders_limit,
         after_days=args.after_days,
+        execution_history_path=str(config.execution_history_path),
     )
 
 
@@ -356,6 +368,12 @@ def _train_alpaca_challenger(
 
     retrain_pipeline = TensorTradePipelineConfig.from_dict(training_job)
     retrain_pipeline.model_path = str(config.artifacts_dir / f"{new_model_id}.keras")
+    retrain_pipeline.train_episodes = max(int(retrain_pipeline.train_episodes), 12)
+    retrain_pipeline.train_steps = max(int(retrain_pipeline.train_steps), 1000)
+    retrain_pipeline.flat_position_penalty = max(
+        float(getattr(retrain_pipeline, "flat_position_penalty", 0.0001)),
+        0.0001,
+    )
 
     trainer = TensorTradeTrainer(registry=registry)
     features = trainer.train_from_alpaca(
@@ -406,7 +424,7 @@ def handle_collect_metrics(args) -> int:
     collector = AlpacaMetricsCollector(
         trading_client=broker.client_for_mode(mode),
         market_data_client=market_data_client,
-        config=_metrics_config_from_args(args),
+        config=_metrics_config_from_args(args, config),
     )
     snapshot = collector.collect_snapshot(
         model=model,
@@ -578,11 +596,17 @@ def handle_operate(args) -> int:
             broker=broker,
         )
         runtime.start(args.model_id, mode)
+        position_qty = broker.current_position_qty(mode, pipeline.symbol)
+        available_cash = broker.available_cash(mode)
         run_payload = runtime.run_once(
             model_id=args.model_id,
             mode=mode,
             features=feature_df.iloc[-1].to_dict(),
-            context={"latest_close": float(feature_df["close"].iloc[-1])},
+            context={
+                "latest_close": float(feature_df["close"].iloc[-1]),
+                "position_qty": position_qty,
+                "available_cash": available_cash,
+            },
         )
         execution_record = ExecutionResultStore(config.execution_history_path).append_result(
             project=config.project_name,
@@ -599,7 +623,7 @@ def handle_operate(args) -> int:
         collector = AlpacaMetricsCollector(
             trading_client=broker.client_for_mode(mode),
             market_data_client=market_data_client,
-            config=_metrics_config_from_args(args),
+            config=_metrics_config_from_args(args, config),
         )
         snapshot = collector.collect_snapshot(
             model=model,
@@ -646,6 +670,130 @@ def handle_operate(args) -> int:
 
 def _shadow_ledger_path(config: AppConfig, model_id: str) -> Path:
     return config.state_dir / "shadow_training" / f"{model_id}.json"
+
+
+def _parse_bar_timestamp(bar_at: str | None) -> datetime | None:
+    if not bar_at:
+        return None
+    try:
+        parsed = datetime.fromisoformat(bar_at)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _market_status_label(bar_at: str | None) -> str:
+    parsed = _parse_bar_timestamp(bar_at)
+    if parsed is None:
+        return "market=unknown"
+
+    ny_tz = ZoneInfo("America/New_York")
+    br_tz = ZoneInfo("America/Sao_Paulo")
+    ny_time = parsed.astimezone(ny_tz)
+    br_time = parsed.astimezone(br_tz)
+
+    session = "closed"
+    if ny_time.weekday() < 5:
+        minutes = ny_time.hour * 60 + ny_time.minute
+        if 570 <= minutes < 960:
+            session = "open"
+        elif 240 <= minutes < 570:
+            session = "pre"
+        elif 960 <= minutes < 1200:
+            session = "after"
+
+    return (
+        f"market={session} "
+        f"ny={ny_time.strftime('%Y-%m-%d %H:%M')} "
+        f"br={br_time.strftime('%Y-%m-%d %H:%M')}"
+    )
+
+
+def _compact_execution_reason(reason: object) -> str | None:
+    if not isinstance(reason, str):
+        return None
+
+    compact_parts: list[str] = []
+    action_name = None
+
+    if "masked_invalid_action" in reason:
+        compact_parts.append("masked")
+    if "blocked_no_position" in reason:
+        compact_parts.append("no_position")
+    if "sell bloqueado antes do broker" in reason:
+        compact_parts.append("blocked_pre_broker")
+
+    action_token = "tensortrade_action="
+    if action_token in reason:
+        action_fragment = reason.split(action_token, 1)[1].split()[0]
+        action_name = f"a{action_fragment}"
+
+    if " side=buy" in reason or "side=buy " in f"{reason} ":
+        compact_parts.append("buy")
+    elif " side=sell" in reason or "side=sell " in f"{reason} ":
+        compact_parts.append("sell")
+    elif " hold " in f" {reason} ":
+        compact_parts.append("hold")
+
+    selected_token = "selected_action="
+    if selected_token in reason:
+        selected_fragment = reason.split(selected_token, 1)[1].split()[0]
+        compact_parts.append(f"selected=a{selected_fragment}")
+
+    if action_name:
+        compact_parts.insert(0, action_name)
+
+    if not compact_parts:
+        trimmed = reason.split("features=", 1)[0].strip()
+        return trimmed[:120] if trimmed else None
+
+    return ":".join(compact_parts)
+
+
+def _format_execution_status(run_payload: dict[str, object], latest_close: float) -> str:
+    intent = run_payload.get("intent", {}) if isinstance(run_payload, dict) else {}
+    if not isinstance(intent, dict):
+        intent = {}
+
+    side = str(intent.get("side", "hold")).lower()
+    reference_price = intent.get("reference_price", latest_close)
+    try:
+        reference_price_value = float(reference_price)
+    except (TypeError, ValueError):
+        reference_price_value = float(latest_close)
+
+    status_parts = [f"decision={side}", f"px={reference_price_value:.2f}"]
+
+    size_fraction = intent.get("size_fraction")
+    if size_fraction is not None:
+        try:
+            status_parts.append(f"size={float(size_fraction) * 100:.1f}%")
+        except (TypeError, ValueError):
+            pass
+
+    notional_usd = intent.get("notional_usd")
+    if notional_usd is not None:
+        try:
+            notional_value = float(notional_usd)
+        except (TypeError, ValueError):
+            notional_value = 0.0
+        if notional_value > 0:
+            status_parts.append(f"notional=${notional_value:.2f}")
+
+    if run_payload.get("submitted"):
+        status_parts.append(f"exec={run_payload.get('reference', 'submitted')}")
+    else:
+        reason = run_payload.get("reason")
+        compact_reason = _compact_execution_reason(reason)
+        if compact_reason:
+            status_parts.append(f"exec={compact_reason}")
+        error = run_payload.get("error")
+        if error:
+            status_parts.append(f"error={error}")
+
+    return " ".join(status_parts)
 
 
 def _run_shadow_snapshot(
@@ -731,6 +879,9 @@ def handle_online_train(args) -> int:
         evaluation_iterations=args.shadow_eval_iterations,
         evaluation_min_trades=args.shadow_min_trades,
         challenger_wins_required=args.shadow_wins_required,
+        max_evaluation_iterations=args.shadow_max_eval_iterations,
+        max_zero_trade_iterations=args.shadow_max_zero_trade_iterations,
+        allow_rebase_promotion=not args.no_shadow_rebase_promotion,
     )
 
     registry_state = registry.state()
@@ -744,8 +895,70 @@ def handle_online_train(args) -> int:
             champion_model_id=active_paper_model_id,
             last_seen_bar_at=online_state.last_seen_bar_at,
             last_processed_bar_at=online_state.last_processed_bar_at,
+            last_challenger_retired_at=online_state.last_challenger_retired_at,
+            last_challenger_retired_reason=online_state.last_challenger_retired_reason,
         )
         online_state_store.save(online_state)
+
+    def spawn_challenger(
+        *,
+        trigger_snapshot: PerformanceSnapshot,
+        champion_model_id: str,
+        inherited_state: OnlineTrainingState,
+        replacement_of: str | None = None,
+        replacement_reason: str | None = None,
+    ) -> dict:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        challenger_model_id = f"{champion_model_id}_{args.retrain_suffix}_{timestamp}"
+        retrain_result = _train_alpaca_challenger(
+            args=args,
+            config=config,
+            registry=registry,
+            parent_model_id=champion_model_id,
+            new_model_id=challenger_model_id,
+            snapshot=trigger_snapshot,
+            market_data_client=market_data_client,
+            trainer_source="online_train_auto_retrain",
+        )
+
+        ShadowPaperLedger(
+            path=_shadow_ledger_path(config, champion_model_id),
+            initial_cash_usd=args.shadow_cash,
+        ).reset()
+        ShadowPaperLedger(
+            path=_shadow_ledger_path(config, challenger_model_id),
+            initial_cash_usd=args.shadow_cash,
+        ).reset()
+
+        next_state = OnlineTrainingState(
+            champion_model_id=champion_model_id,
+            challenger_model_id=challenger_model_id,
+            evaluation_iterations=0,
+            challenger_created_at=datetime.now(timezone.utc).isoformat(),
+            last_seen_bar_at=inherited_state.last_seen_bar_at,
+            last_processed_bar_at=inherited_state.last_processed_bar_at,
+            last_cycle_status=inherited_state.last_cycle_status,
+            last_challenger_retired_at=(
+                datetime.now(timezone.utc).isoformat() if replacement_of else inherited_state.last_challenger_retired_at
+            ),
+            last_challenger_retired_reason=(
+                (
+                    f"substituido {replacement_of}: {replacement_reason}"
+                    if replacement_of and replacement_reason
+                    else f"substituido {replacement_of}"
+                )
+                if replacement_of
+                else inherited_state.last_challenger_retired_reason
+            ),
+        )
+        online_state_store.save(next_state)
+        return {
+            "new_model": retrain_result["new_model"],
+            "training_payload": retrain_result["training_payload"],
+            "shadow_state": next_state.to_dict(),
+            "replacement_of": replacement_of,
+            "replacement_reason": replacement_reason,
+        }
 
     cycle_results = []
     keep_cycle_results = args.iterations > 0
@@ -759,6 +972,8 @@ def handle_online_train(args) -> int:
                 champion_model_id=active_paper_model_id,
                 last_seen_bar_at=online_state.last_seen_bar_at,
                 last_processed_bar_at=online_state.last_processed_bar_at,
+                last_challenger_retired_at=online_state.last_challenger_retired_at,
+                last_challenger_retired_reason=online_state.last_challenger_retired_reason,
             )
             online_state_store.save(online_state)
 
@@ -868,7 +1083,8 @@ def handle_online_train(args) -> int:
                 (
                     f"[online-train] poll={poll_iteration} processed={iteration} "
                     f"status={repeated_status} model={active_paper_model_id} "
-                    f"symbol={pipeline.symbol} bar_at={latest_bar_at}"
+                    f"symbol={pipeline.symbol} bar_at={latest_bar_at} "
+                    f"{_market_status_label(latest_bar_at)}"
                 ),
                 flush=True,
             )
@@ -918,7 +1134,8 @@ def handle_online_train(args) -> int:
                     f"[online-train] poll={poll_iteration} processed={iteration} "
                     f"status=waiting_history model={active_paper_model_id} "
                     f"symbol={pipeline.symbol} bar_at={latest_bar_at} "
-                    f"feature_rows={len(feature_df)}/{minimum_feature_rows}"
+                    f"feature_rows={len(feature_df)}/{minimum_feature_rows} "
+                    f"{_market_status_label(latest_bar_at)}"
                 ),
                 flush=True,
             )
@@ -938,11 +1155,17 @@ def handle_online_train(args) -> int:
             broker=broker,
         )
         runtime.start(active_paper_model_id, RunMode.PAPER)
+        position_qty = broker.current_position_qty(RunMode.PAPER, pipeline.symbol)
+        available_cash = broker.available_cash(RunMode.PAPER)
         run_payload = runtime.run_once(
             model_id=active_paper_model_id,
             mode=RunMode.PAPER,
             features=feature_df.iloc[-1].to_dict(),
-            context={"latest_close": latest_close},
+            context={
+                "latest_close": latest_close,
+                "position_qty": position_qty,
+                "available_cash": available_cash,
+            },
         )
         execution_record = ExecutionResultStore(config.execution_history_path).append_result(
             project=config.project_name,
@@ -960,7 +1183,7 @@ def handle_online_train(args) -> int:
         collector = AlpacaMetricsCollector(
             trading_client=broker.client_for_mode(RunMode.PAPER),
             market_data_client=market_data_client,
-            config=_metrics_config_from_args(args),
+            config=_metrics_config_from_args(args, config),
         )
         snapshot = collector.collect_snapshot(
             model=model,
@@ -988,42 +1211,11 @@ def handle_online_train(args) -> int:
                     ),
                 }
 
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            challenger_model_id = f"{active_paper_model_id}_{args.retrain_suffix}_{timestamp}"
-            retrain_result = _train_alpaca_challenger(
-                args=args,
-                config=config,
-                registry=registry,
-                parent_model_id=active_paper_model_id,
-                new_model_id=challenger_model_id,
-                snapshot=trigger_snapshot,
-                market_data_client=market_data_client,
-                trainer_source="online_train_auto_retrain",
-            )
-
-            ShadowPaperLedger(
-                path=_shadow_ledger_path(config, active_paper_model_id),
-                initial_cash_usd=args.shadow_cash,
-            ).reset()
-            ShadowPaperLedger(
-                path=_shadow_ledger_path(config, challenger_model_id),
-                initial_cash_usd=args.shadow_cash,
-            ).reset()
-
-            next_state = OnlineTrainingState(
+            return spawn_challenger(
+                trigger_snapshot=trigger_snapshot,
                 champion_model_id=active_paper_model_id,
-                challenger_model_id=challenger_model_id,
-                evaluation_iterations=0,
-                challenger_created_at=datetime.now(timezone.utc).isoformat(),
-                last_seen_bar_at=online_state.last_seen_bar_at,
-                last_processed_bar_at=online_state.last_processed_bar_at,
+                inherited_state=current_state,
             )
-            online_state_store.save(next_state)
-            return {
-                "new_model": retrain_result["new_model"],
-                "training_payload": retrain_result["training_payload"],
-                "shadow_state": next_state.to_dict(),
-            }
 
         supervise_result = loop.run_once(
             model_id=active_paper_model_id,
@@ -1080,16 +1272,45 @@ def handle_online_train(args) -> int:
                 }
             )
 
-            if promotion_decision["eligible"] and not args.no_auto_promote_paper:
+            if (
+                promotion_decision["eligible"]
+                or promotion_decision.get("rebase_eligible")
+                or promotion_decision.get("activity_rebase_eligible")
+            ) and not args.no_auto_promote_paper:
+                promotion_reason = (
+                    f"promovido automaticamente em shadow apos {online_state.evaluation_iterations} iteracoes"
+                )
+                if promotion_decision.get("rebase_eligible") and not promotion_decision["eligible"]:
+                    promotion_reason = (
+                        "promovido automaticamente por rebase de regime "
+                        f"apos {online_state.evaluation_iterations} iteracoes"
+                    )
+                if promotion_decision.get("activity_rebase_eligible") and not (
+                    promotion_decision["eligible"] or promotion_decision.get("rebase_eligible")
+                ):
+                    promotion_reason = (
+                        "promovido automaticamente por atividade shadow inicial "
+                        f"apos {online_state.evaluation_iterations} iteracoes"
+                    )
                 paper_record = registry.mark_paper_ready(
                     online_state.challenger_model_id,
-                    notes=(
-                        f"promovido automaticamente em shadow apos {online_state.evaluation_iterations} iteracoes"
-                    ),
+                    notes=promotion_reason,
                 )
                 online_state = OnlineTrainingState(champion_model_id=online_state.challenger_model_id)
                 online_state_store.save(online_state)
                 shadow_result["paper_promotion"] = paper_record.to_dict()
+            elif promotion_decision.get("replacement_required"):
+                retired_model_id = online_state.challenger_model_id
+                replacement_reason = "; ".join(promotion_decision.get("replacement_reasons", []))
+                replacement_result = spawn_challenger(
+                    trigger_snapshot=snapshot,
+                    champion_model_id=online_state.champion_model_id,
+                    inherited_state=online_state,
+                    replacement_of=retired_model_id,
+                    replacement_reason=replacement_reason,
+                )
+                online_state = online_state_store.load()
+                shadow_result["challenger_replaced"] = replacement_result
 
         online_state.last_seen_bar_at = latest_bar_at
         online_state.last_processed_bar_at = latest_bar_at
@@ -1110,11 +1331,14 @@ def handle_online_train(args) -> int:
             cycle_results.append(cycle_payload)
 
         report = supervise_result.report_record.get("report", {})
+        execution_status = _format_execution_status(run_payload, latest_close)
         print(
             (
                 f"[online-train] poll={poll_iteration} processed={iteration} "
                 f"status=processed model={active_paper_model_id} symbol={pipeline.symbol} "
-                f"bar_at={latest_bar_at} action={report.get('action', 'unknown')}"
+                f"bar_at={latest_bar_at} {execution_status} "
+                f"supervisor={report.get('action', 'unknown')} "
+                f"{_market_status_label(latest_bar_at)}"
             ),
             flush=True,
         )
